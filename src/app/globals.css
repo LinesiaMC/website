@@ -1,26 +1,274 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: #FFFFFF;
+  --color-bg-soft: #F1F4F8;
+  --color-text: #3F3F3F;
+  --color-text-sub: #636363;
+  --color-text-muted: #999999;
+  --color-border: #E0E0E0;
+  --color-border-card: #C9C9C9;
+
+  --color-pink: #E91E8C;
+  --color-pink-hover: #D1187D;
+  --color-pink-soft: #FDF2F8;
+  --color-violet: #7C3AED;
+  --color-violet-hover: #6D28D9;
+
+  --color-discord: #5865F2;
+  --color-green: #22C55E;
+
+  --font-poppins: "Poppins", system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #ddd #f1f4f8;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #FFFFFF;
+  color: #3F3F3F;
+  font-family: "Poppins", system-ui, sans-serif;
 }
+
+/* ============================================
+   SECTION BADGE (Hyping-style pill tag)
+   ============================================ */
+.section-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: 24px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: #FDF2F8;
+  color: #E91E8C;
+  margin-bottom: 16px;
+}
+
+/* ============================================
+   CARDS (Hyping-style)
+   ============================================ */
+.mc-card {
+  background: #FFFFFF;
+  border: 1px solid #E0E0E0;
+  border-radius: 16px;
+  box-shadow: 0 0 15px 1px rgba(0,0,0,0.02);
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+.mc-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #E91E8C, #7C3AED);
+  transform: scaleX(0);
+  transition: transform 0.2s ease;
+}
+.mc-card:hover {
+  box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+  transform: translateY(-2px);
+}
+.mc-card:hover::before {
+  transform: scaleX(1);
+}
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+.btn-primary {
+  background: #E91E8C;
+  color: white;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 12px 28px;
+  font-size: 14px;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-primary:hover {
+  background: #D1187D;
+  box-shadow: 0 4px 16px rgba(233,30,140,0.3);
+  transform: translateY(-1px);
+}
+
+.btn-discord {
+  background: #5865F2;
+  color: white;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 12px 28px;
+  font-size: 14px;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-discord:hover {
+  background: #4752C4;
+  box-shadow: 0 4px 16px rgba(88,101,242,0.3);
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  background: #F1F4F8;
+  color: #636363;
+  font-weight: 500;
+  border-radius: 10px;
+  padding: 12px 28px;
+  font-size: 14px;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-ghost:hover {
+  background: #E5E8EC;
+  color: #3F3F3F;
+}
+
+/* ============================================
+   IP BUTTON (Hyping-style gray pill)
+   ============================================ */
+.ip-pill {
+  background: #EBEBEB;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 15px;
+  color: #3F3F3F;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.15s;
+  cursor: pointer;
+}
+.ip-pill:hover {
+  background: #E0E0E0;
+}
+
+/* ============================================
+   TAB BAR
+   ============================================ */
+.tab-bar {
+  background: #FFFFFF;
+  border: 1px solid #E0E0E0;
+  border-radius: 16px;
+  box-shadow: 0 0 15px 1px rgba(0,0,0,0.02);
+  display: inline-flex;
+  padding: 4px;
+  gap: 2px;
+}
+.tab-item {
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #636363;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tab-item:hover {
+  color: #3F3F3F;
+  background: #F8F8FA;
+}
+.tab-item.active {
+  color: #E91E8C;
+  background: #FDF2F8;
+  font-weight: 600;
+}
+
+/* ============================================
+   PROGRESS BAR
+   ============================================ */
+.progress-bar {
+  height: 10px;
+  background: #F0F0F0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #E91E8C, #7C3AED);
+  border-radius: 999px;
+  position: relative;
+}
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  animation: shimmer 2s infinite;
+}
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ============================================
+   SCROLL REVEAL (Hyping-style)
+   ============================================ */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.6s ease-out;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ============================================
+   UTILS
+   ============================================ */
+.gradient-text {
+  background: linear-gradient(135deg, #E91E8C, #7C3AED);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.online-dot {
+  width: 8px;
+  height: 8px;
+  background: #22C55E;
+  border-radius: 50%;
+  position: relative;
+  display: inline-block;
+}
+.online-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: #22C55E;
+  opacity: 0.3;
+  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes ping {
+  75%, 100% { transform: scale(2.5); opacity: 0; }
+}
+
+/* Gem SVG shimmer */
+@keyframes gem-shine {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.2); }
+}
+.gem-shine { animation: gem-shine 2.5s ease-in-out infinite; }
