@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, ReactNode } from "react";
+import { useState, useCallback, useEffect, ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import {
   Lock, LogOut, Newspaper, BarChart3, Users, TrendingUp,
@@ -30,12 +30,25 @@ const NAV_LABELS: Record<string, { fr: string; en: string }> = {
   logs: { fr: "Logs", en: "Logs" },
 };
 
+const SESSION_KEY = "linesia-admin-pwd";
+
 export default function AdminShell({ children, locale }: AdminShellProps) {
   const [password, setPassword] = useState("");
   const [authed, setAuthed] = useState(false);
   const [error, setError] = useState("");
   const [collapsed, setCollapsed] = useState(false);
+  const [checking, setChecking] = useState(true);
   const pathname = usePathname();
+
+  // Restore session from sessionStorage on mount
+  useEffect(() => {
+    const saved = sessionStorage.getItem(SESSION_KEY);
+    if (saved) {
+      setPassword(saved);
+      setAuthed(true);
+    }
+    setChecking(false);
+  }, []);
 
   const headers = useCallback(() => ({
     "Content-Type": "application/json",
@@ -55,14 +68,29 @@ export default function AdminShell({ children, locale }: AdminShellProps) {
       }
       if (res.ok) {
         const art = await res.json();
-        await fetch(`/api/articles?id=${art.id}`, { method: "DELETE", headers: headers() });
+        await fetch(`/api/articles?id=${art.id}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${password}` },
+        });
       }
+      sessionStorage.setItem(SESSION_KEY, password);
       setAuthed(true);
       setError("");
     } catch {
       setError(locale === "fr" ? "Erreur de connexion" : "Connection error");
     }
   };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem(SESSION_KEY);
+    setAuthed(false);
+    setPassword("");
+  };
+
+  // Don't flash login screen while checking sessionStorage
+  if (checking) {
+    return <div className="min-h-screen bg-bg-soft" />;
+  }
 
   if (!authed) {
     return (
@@ -148,7 +176,7 @@ export default function AdminShell({ children, locale }: AdminShellProps) {
             {!collapsed && <span>{locale === "fr" ? "Reduire" : "Collapse"}</span>}
           </button>
           <button
-            onClick={() => { setAuthed(false); setPassword(""); }}
+            onClick={handleLogout}
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-text-sub hover:bg-red-50 hover:text-red-500 w-full transition-colors"
           >
             <LogOut size={18} className="shrink-0" />

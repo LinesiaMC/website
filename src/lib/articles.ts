@@ -5,14 +5,6 @@ const IS_VERCEL = !!process.env.VERCEL;
 const DATA_DIR = IS_VERCEL ? "/tmp" : path.join(process.cwd(), "data");
 const ARTICLES_FILE = path.join(DATA_DIR, "articles.json");
 
-// On Vercel, seed from bundled data if available
-if (IS_VERCEL && !fs.existsSync(ARTICLES_FILE)) {
-  const bundled = path.join(process.cwd(), "data", "articles.json");
-  if (fs.existsSync(bundled)) {
-    fs.copyFileSync(bundled, ARTICLES_FILE);
-  }
-}
-
 export interface Article {
   id: string;
   title: string;
