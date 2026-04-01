@@ -1,4 +1,4 @@
-import initSqlJs, { Database } from "sql.js";
+import type { Database } from "sql.js";
 import fs from "fs";
 import path from "path";
 
@@ -25,6 +25,8 @@ export async function getDb(): Promise<Database> {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
+    // Use the asm.js build (pure JS, no WASM file needed on Vercel)
+    const initSqlJs = (await import("sql.js/dist/sql-asm.js")).default;
     const SQL = await initSqlJs();
 
     if (fs.existsSync(DB_PATH)) {
