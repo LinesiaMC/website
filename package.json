@@ -16,7 +16,8 @@
     "next-intl": "^4.8.3",
     "react": "19.1.0",
     "react-chartjs-2": "^5.3.1",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "sql.js": "^1.14.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -24,6 +25,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sql.js": "^1.4.11",
     "eslint": "^9",
     "eslint-config-next": "15.5.14",
     "tailwindcss": "^4",
