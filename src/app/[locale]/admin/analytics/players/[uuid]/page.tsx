@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Activity, Clock, Terminal, Globe, Skull, MessageSquare } from "lucide-react";
-import AdminShell from "@/components/admin/AdminShell";
+import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDuration, formatDate } from "@/components/admin/AnalyticsAPI";
 
 interface PlayerDetail {
@@ -27,14 +27,7 @@ interface PlayerDetail {
 
 export default function PlayerDetailPage() {
   const { locale, uuid } = useParams<{ locale: string; uuid: string }>();
-  return (
-    <AdminShell locale={locale}>
-      {({ headers }) => <PlayerDetailContent headers={headers} locale={locale} uuid={uuid} />}
-    </AdminShell>
-  );
-}
-
-function PlayerDetailContent({ headers, locale, uuid }: { headers: () => Record<string, string>; locale: string; uuid: string }) {
+  const { headers } = useAdmin();
   const [data, setData] = useState<PlayerDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"sessions" | "commands" | "worlds" | "deaths" | "messages">("sessions");

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Plus, Pencil, Trash2, Newspaper, X, Save } from "lucide-react";
-import AdminShell from "@/components/admin/AdminShell";
+import { useAdmin } from "@/components/admin/AdminContext";
 
 interface Article {
   id: string;
@@ -16,18 +16,12 @@ interface Article {
 
 export default function AdminPage() {
   const { locale } = useParams<{ locale: string }>();
+  const { headers } = useAdmin();
 
-  return (
-    <AdminShell locale={locale}>
-      {({ headers }) => <ArticlesPanel headers={headers} locale={locale} />}
-    </AdminShell>
-  );
-}
-
-function ArticlesPanel({ headers, locale }: { headers: () => Record<string, string>; locale: string }) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [editing, setEditing] = useState<Article | null>(null);
   const [creating, setCreating] = useState(false);
+
   const t = (key: string) => {
     const labels: Record<string, Record<string, string>> = {
       articles: { fr: "Articles", en: "Articles" },
@@ -139,10 +133,7 @@ function ArticlesPanel({ headers, locale }: { headers: () => Record<string, stri
 }
 
 function ArticleForm({
-  article,
-  onSave,
-  onCancel,
-  t,
+  article, onSave, onCancel, t,
 }: {
   article: Article | null;
   onSave: (data: Omit<Article, "id"> & { id?: string }) => void;
@@ -177,72 +168,35 @@ function ArticleForm({
           <X size={18} />
         </button>
       </div>
-
       <div className="mc-card p-6 space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-[12px] font-semibold text-text-sub mb-1.5 block uppercase tracking-wider">Langue</label>
-            <select
-              value={locale}
-              onChange={(e) => setLocale(e.target.value as "fr" | "en")}
-              className="w-full px-3 py-2.5 rounded-xl border-2 border-border bg-white text-[14px] text-text focus:border-pink focus:outline-none"
-            >
+            <select value={locale} onChange={(e) => setLocale(e.target.value as "fr" | "en")} className="w-full px-3 py-2.5 rounded-xl border-2 border-border bg-white text-[14px] text-text focus:border-pink focus:outline-none">
               <option value="fr">Francais</option>
               <option value="en">English</option>
             </select>
           </div>
           <div>
             <label className="text-[12px] font-semibold text-text-sub mb-1.5 block uppercase tracking-wider">{t("dateField")}</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border-2 border-border bg-white text-[14px] text-text focus:border-pink focus:outline-none"
-            />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border-2 border-border bg-white text-[14px] text-text focus:border-pink focus:outline-none" />
           </div>
         </div>
-
         <div>
           <label className="text-[12px] font-semibold text-text-sub mb-1.5 block uppercase tracking-wider">{t("titleField")}</label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Titre de l'article..."
-            className="w-full px-3 py-2.5 rounded-xl border-2 border-border bg-white text-[14px] text-text placeholder:text-text-muted focus:border-pink focus:outline-none"
-          />
+          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titre de l'article..." className="w-full px-3 py-2.5 rounded-xl border-2 border-border bg-white text-[14px] text-text placeholder:text-text-muted focus:border-pink focus:outline-none" />
         </div>
-
         <div>
           <label className="text-[12px] font-semibold text-text-sub mb-1.5 block uppercase tracking-wider">{t("excerptField")}</label>
-          <input
-            type="text"
-            value={excerpt}
-            onChange={(e) => setExcerpt(e.target.value)}
-            placeholder="Court resume..."
-            className="w-full px-3 py-2.5 rounded-xl border-2 border-border bg-white text-[14px] text-text placeholder:text-text-muted focus:border-pink focus:outline-none"
-          />
+          <input type="text" value={excerpt} onChange={(e) => setExcerpt(e.target.value)} placeholder="Court resume..." className="w-full px-3 py-2.5 rounded-xl border-2 border-border bg-white text-[14px] text-text placeholder:text-text-muted focus:border-pink focus:outline-none" />
         </div>
-
         <div>
           <label className="text-[12px] font-semibold text-text-sub mb-1.5 block uppercase tracking-wider">{t("contentField")}</label>
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="Contenu complet de l'article..."
-            rows={10}
-            className="w-full px-3 py-2.5 rounded-xl border-2 border-border bg-white text-[14px] text-text placeholder:text-text-muted focus:border-pink focus:outline-none resize-y"
-          />
+          <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Contenu complet de l'article..." rows={10} className="w-full px-3 py-2.5 rounded-xl border-2 border-border bg-white text-[14px] text-text placeholder:text-text-muted focus:border-pink focus:outline-none resize-y" />
         </div>
-
         <div className="flex items-center justify-end gap-2 pt-2">
-          <button onClick={onCancel} className="btn-ghost !py-2 !px-5 !text-[13px]">
-            {t("cancel")}
-          </button>
-          <button onClick={handleSubmit} className="btn-primary !py-2 !px-5 !text-[13px]">
-            <Save size={14} />
-            {t("save")}
-          </button>
+          <button onClick={onCancel} className="btn-ghost !py-2 !px-5 !text-[13px]">{t("cancel")}</button>
+          <button onClick={handleSubmit} className="btn-primary !py-2 !px-5 !text-[13px]"><Save size={14} />{t("save")}</button>
         </div>
       </div>
     </div>

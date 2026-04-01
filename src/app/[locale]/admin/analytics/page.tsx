@@ -6,7 +6,7 @@ import {
   Users, UserPlus, Clock, Skull, MessageSquare, Terminal,
   TrendingUp, TrendingDown, Activity,
 } from "lucide-react";
-import AdminShell from "@/components/admin/AdminShell";
+import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDuration, formatNumber } from "@/components/admin/AnalyticsAPI";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler } from "chart.js";
 import { Line, Doughnut, Bar } from "react-chartjs-2";
@@ -54,14 +54,7 @@ interface PeakData {
 
 export default function AnalyticsDashboard() {
   const { locale } = useParams<{ locale: string }>();
-  return (
-    <AdminShell locale={locale}>
-      {({ headers }) => <DashboardContent headers={headers} locale={locale} />}
-    </AdminShell>
-  );
-}
-
-function DashboardContent({ headers, locale }: { headers: () => Record<string, string>; locale: string }) {
+  const { headers } = useAdmin();
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [daily, setDaily] = useState<DailyData[]>([]);
   const [platforms, setPlatforms] = useState<PlatformData[]>([]);

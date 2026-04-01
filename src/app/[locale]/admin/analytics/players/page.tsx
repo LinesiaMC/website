@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { Users, Search, ChevronLeft, ChevronRight, Activity } from "lucide-react";
-import AdminShell from "@/components/admin/AdminShell";
+import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDuration, formatDate } from "@/components/admin/AnalyticsAPI";
 
 interface Player {
@@ -18,14 +18,7 @@ interface Player {
 
 export default function PlayersPage() {
   const { locale } = useParams<{ locale: string }>();
-  return (
-    <AdminShell locale={locale}>
-      {({ headers }) => <PlayersContent headers={headers} locale={locale} />}
-    </AdminShell>
-  );
-}
-
-function PlayersContent({ headers, locale }: { headers: () => Record<string, string>; locale: string }) {
+  const { headers } = useAdmin();
   const [players, setPlayers] = useState<Player[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);

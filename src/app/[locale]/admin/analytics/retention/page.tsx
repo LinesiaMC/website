@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { TrendingUp, Activity } from "lucide-react";
-import AdminShell from "@/components/admin/AdminShell";
+import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher } from "@/components/admin/AnalyticsAPI";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler } from "chart.js";
 import { Line } from "react-chartjs-2";
@@ -21,14 +21,7 @@ interface RetentionDay {
 
 export default function RetentionPage() {
   const { locale } = useParams<{ locale: string }>();
-  return (
-    <AdminShell locale={locale}>
-      {({ headers }) => <RetentionContent headers={headers} locale={locale} />}
-    </AdminShell>
-  );
-}
-
-function RetentionContent({ headers, locale }: { headers: () => Record<string, string>; locale: string }) {
+  const { headers } = useAdmin();
   const [retention, setRetention] = useState<RetentionDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

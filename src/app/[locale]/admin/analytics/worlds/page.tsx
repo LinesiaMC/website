@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { Globe, Activity } from "lucide-react";
-import AdminShell from "@/components/admin/AdminShell";
+import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDuration } from "@/components/admin/AnalyticsAPI";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend } from "chart.js";
 import { Bar } from "react-chartjs-2";
@@ -19,14 +19,7 @@ interface WorldData {
 
 export default function WorldsPage() {
   const { locale } = useParams<{ locale: string }>();
-  return (
-    <AdminShell locale={locale}>
-      {({ headers }) => <WorldsContent headers={headers} locale={locale} />}
-    </AdminShell>
-  );
-}
-
-function WorldsContent({ headers, locale }: { headers: () => Record<string, string>; locale: string }) {
+  const { headers } = useAdmin();
   const [worlds, setWorlds] = useState<WorldData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

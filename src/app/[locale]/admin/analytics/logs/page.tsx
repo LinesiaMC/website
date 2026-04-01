@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { ScrollText, Search, Activity, ChevronLeft, ChevronRight, AlertTriangle, Info } from "lucide-react";
-import AdminShell from "@/components/admin/AdminShell";
+import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDate } from "@/components/admin/AnalyticsAPI";
 
 interface LogEntry {
@@ -38,14 +38,7 @@ interface LogStats {
 
 export default function LogsPage() {
   const { locale } = useParams<{ locale: string }>();
-  return (
-    <AdminShell locale={locale}>
-      {({ headers }) => <LogsContent headers={headers} locale={locale} />}
-    </AdminShell>
-  );
-}
-
-function LogsContent({ headers, locale }: { headers: () => Record<string, string>; locale: string }) {
+  const { headers } = useAdmin();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [stats, setStats] = useState<LogStats | null>(null);
