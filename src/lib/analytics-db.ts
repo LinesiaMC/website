@@ -104,6 +104,18 @@ export async function getDb(): Promise<Database> {
       server_id TEXT
     )`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS casino_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      player_uuid TEXT NOT NULL,
+      game TEXT NOT NULL,
+      bet_amount INTEGER NOT NULL DEFAULT 0,
+      win_amount INTEGER NOT NULL DEFAULT 0,
+      net_result INTEGER NOT NULL DEFAULT 0,
+      currency TEXT DEFAULT 'gems',
+      timestamp INTEGER NOT NULL,
+      server_id TEXT
+    )`);
+
     db.run(`CREATE TABLE IF NOT EXISTS block_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       player_uuid TEXT NOT NULL,
@@ -142,6 +154,10 @@ export async function getDb(): Promise<Database> {
     db.run(`CREATE INDEX IF NOT EXISTS idx_logs_server ON logs(server_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_logs_item_uid ON logs(item_uid)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_server ON sessions(server_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_casino_player ON casino_transactions(player_uuid)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_casino_game ON casino_transactions(game)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_casino_timestamp ON casino_transactions(timestamp)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_casino_server ON casino_transactions(server_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_commands_server ON commands(server_id)`);
 
     saveDb();

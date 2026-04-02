@@ -226,6 +226,70 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         });
       }
 
+      // ==================== CASINO ====================
+      case "stats/casino": {
+        const now = Date.now(), day = 86400000, week = 7 * day;
+        const sid = q.get("server_id");
+        const sf = serverFilter(sid);
+        const w = sf.where ? `WHERE ${sf.where}` : "";
+        const wAnd = sf.where ? `WHERE ${sf.where} AND` : "WHERE";
+
+        return NextResponse.json({
+          totalBets: (getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${w}`, sf.params) as Record<string, number>).count,
+          totalBetAmount: (getOne(db, `SELECT COALESCE(SUM(bet_amount), 0) as total FROM casino_transactions ${w}`, sf.params) as Record<string, number>).total,
+          totalWinAmount: (getOne(db, `SELECT COALESCE(SUM(win_amount), 0) as total FROM casino_transactions ${w}`, sf.params) as Record<string, number>).total,
+          totalNetResult: (getOne(db, `SELECT COALESCE(SUM(net_result), 0) as total FROM casino_transactions ${w}`, sf.params) as Record<string, number>).total,
+          uniquePlayers: (getOne(db, `SELECT COUNT(DISTINCT player_uuid) as count FROM casino_transactions ${w}`, sf.params) as Record<string, number>).count,
+          betsLast24h: (getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${wAnd} timestamp > ?`, [...sf.params, now - day]) as Record<string, number>).count,
+          betsLast7d: (getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${wAnd} timestamp > ?`, [...sf.params, now - week]) as Record<string, number>).count,
+          winsCount: (getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${wAnd} net_result > 0`, sf.params) as Record<string, number>).count,
+          lossesCount: (getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${wAnd} net_result < 0`, sf.params) as Record<string, number>).count,
+          avgBet: Math.round((getOne(db, `SELECT COALESCE(AVG(bet_amount), 0) as avg FROM casino_transactions ${w}`, sf.params) as Record<string, number>).avg),
+        });
+      }
+
+      case "stats/casino/games": {
+        const sid = q.get("server_id");
+        const sf = serverFilter(sid);
+        const w = sf.where ? `WHERE ${sf.where}` : "";
+        return NextResponse.json(getAll(db,
+          `SELECT game, COUNT(*) as total_bets, SUM(bet_amount) as total_bet, SUM(win_amount) as total_won, SUM(net_result) as net, COUNT(DISTINCT player_uuid) as players FROM casino_transactions ${w} GROUP BY game ORDER BY total_bets DESC`,
+          sf.params));
+      }
+
+      case "stats/casino/daily": {
+        const days = Number(q.get("days")) || 30;
+        const sid = q.get("server_id");
+        const now = Date.now(), day = 86400000;
+        const sf = serverFilter(sid);
+        const sWhere = sf.where ? `AND ${sf.where}` : "";
+        const result = [];
+        for (let i = days - 1; i >= 0; i--) {
+          const dayStart = now - (i + 1) * day, dayEnd = now - i * day;
+          const row = getOne(db,
+            `SELECT COUNT(*) as bets, COALESCE(SUM(bet_amount), 0) as bet_total, COALESCE(SUM(win_amount), 0) as win_total, COALESCE(SUM(net_result), 0) as net FROM casino_transactions WHERE timestamp BETWEEN ? AND ? ${sWhere}`,
+            [dayStart, dayEnd, ...sf.params]) as Record<string, number>;
+          result.push({
+            date: new Date(dayStart).toISOString().split("T")[0],
+            bets: row.bets,
+            betTotal: row.bet_total,
+            winTotal: row.win_total,
+            net: row.net,
+          });
+        }
+        return NextResponse.json(result);
+      }
+
+      case "stats/casino/top-players": {
+        const sid = q.get("server_id");
+        const limit = Number(q.get("limit")) || 10;
+        const sf = serverFilter(sid, "c");
+        const sJoin = sf.where ? `AND ${sf.where}` : "";
+        return NextResponse.json(getAll(db,
+          `SELECT c.player_uuid, p.username, COUNT(*) as total_bets, SUM(c.bet_amount) as total_bet, SUM(c.win_amount) as total_won, SUM(c.net_result) as net FROM casino_transactions c LEFT JOIN players p ON p.uuid = c.player_uuid WHERE 1=1 ${sJoin} GROUP BY c.player_uuid ORDER BY total_bets DESC LIMIT ?`,
+          [...sf.params, limit]));
+      }
+
       case "servers": {
         return NextResponse.json(getAll(db, "SELECT * FROM servers ORDER BY server_name"));
       }
@@ -248,6 +312,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
             messages: getAll(db, `SELECT * FROM chat_messages WHERE player_uuid = ? ${sWhere} ORDER BY timestamp DESC LIMIT 100`, [uuid, ...sf.params]),
             commandStats: getAll(db, `SELECT command, COUNT(*) as count FROM commands WHERE player_uuid = ? ${sWhere} GROUP BY command ORDER BY count DESC LIMIT 20`, [uuid, ...sf.params]),
             worldStats: getAll(db, `SELECT world_name, SUM(duration) as total_time, COUNT(*) as visits FROM world_visits WHERE player_uuid = ? ${sWhere} GROUP BY world_name ORDER BY total_time DESC`, [uuid, ...sf.params]),
+            casinoStats: getOne(db, `SELECT COUNT(*) as total_bets, COALESCE(SUM(bet_amount),0) as total_bet, COALESCE(SUM(win_amount),0) as total_won, COALESCE(SUM(net_result),0) as net FROM casino_transactions WHERE player_uuid = ? ${sWhere}`, [uuid, ...sf.params]),
+            casinoHistory: getAll(db, `SELECT * FROM casino_transactions WHERE player_uuid = ? ${sWhere} ORDER BY timestamp DESC LIMIT 50`, [uuid, ...sf.params]),
           });
         }
         return NextResponse.json({ error: "Not found" }, { status: 404 });

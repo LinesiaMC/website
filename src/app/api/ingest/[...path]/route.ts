@@ -88,6 +88,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
         return NextResponse.json({ success: true });
       }
 
+      case "casino": {
+        const { uuid, game, bet_amount, win_amount, currency, timestamp, server_id, server_name } = body;
+        upsertServer(db, server_id, server_name);
+        const net = (win_amount || 0) - (bet_amount || 0);
+        run(db, `INSERT INTO casino_transactions (player_uuid, game, bet_amount, win_amount, net_result, currency, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?)`,
+          [uuid, game || "unknown", bet_amount || 0, win_amount || 0, net, currency || "gems", timestamp || Date.now(), server_id || null]);
+        return NextResponse.json({ success: true });
+      }
+
       case "block": {
         const { uuid, action, block_id, world, x, y, z, timestamp, server_id, server_name } = body;
         upsertServer(db, server_id, server_name);
@@ -119,6 +128,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
               run(db, `INSERT INTO block_events (player_uuid, action, block_id, world, x, y, z, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?,?)`,
                 [e.uuid, e.action, e.block_id, e.world || "", e.x || 0, e.y || 0, e.z || 0, e.timestamp || Date.now(), sid]);
               break;
+            case "casino": {
+              const net = (e.win_amount || 0) - (e.bet_amount || 0);
+              run(db, `INSERT INTO casino_transactions (player_uuid, game, bet_amount, win_amount, net_result, currency, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?)`,
+                [e.uuid, e.game || "unknown", e.bet_amount || 0, e.win_amount || 0, net, e.currency || "gems", e.timestamp || Date.now(), sid]);
+              break;
+            }
           }
         }
         return NextResponse.json({ success: true, count: events.length });
