@@ -25,29 +25,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         const sid = q.get("server_id");
         if (sid && sid !== "all") {
           return NextResponse.json({
-            totalPlayers: (getOne(db, "SELECT COUNT(DISTINCT player_uuid) as count FROM sessions WHERE server_id = ?", [sid]) as Record<string,number>).count,
-            activeLast24h: (getOne(db, "SELECT COUNT(DISTINCT player_uuid) as count FROM sessions WHERE server_id = ? AND join_time > ?", [sid, now - day]) as Record<string,number>).count,
-            activeLast7d: (getOne(db, "SELECT COUNT(DISTINCT player_uuid) as count FROM sessions WHERE server_id = ? AND join_time > ?", [sid, now - week]) as Record<string,number>).count,
-            newLast24h: (getOne(db, "SELECT COUNT(*) as count FROM players WHERE first_seen > ?", [now - day]) as Record<string,number>).count,
-            newLast7d: (getOne(db, "SELECT COUNT(*) as count FROM players WHERE first_seen > ?", [now - week]) as Record<string,number>).count,
-            totalCommands: (getOne(db, "SELECT COUNT(*) as count FROM commands WHERE server_id = ?", [sid]) as Record<string,number>).count,
-            totalDeaths: (getOne(db, "SELECT COUNT(*) as count FROM deaths WHERE server_id = ?", [sid]) as Record<string,number>).count,
-            totalMessages: (getOne(db, "SELECT COUNT(*) as count FROM chat_messages WHERE server_id = ?", [sid]) as Record<string,number>).count,
-            avgPlaytime: Math.round((getOne(db, "SELECT AVG(total_playtime) as avg FROM players WHERE total_playtime > 0") as Record<string,number>)?.avg || 0),
-            avgSessionCount: Math.round(((getOne(db, "SELECT AVG(session_count) as avg FROM players") as Record<string,number>)?.avg || 0) * 10) / 10,
+            totalPlayers: ((await getOne(db, "SELECT COUNT(DISTINCT player_uuid) as count FROM sessions WHERE server_id = ?", [sid])) as Record<string,number>).count,
+            activeLast24h: ((await getOne(db, "SELECT COUNT(DISTINCT player_uuid) as count FROM sessions WHERE server_id = ? AND join_time > ?", [sid, now - day])) as Record<string,number>).count,
+            activeLast7d: ((await getOne(db, "SELECT COUNT(DISTINCT player_uuid) as count FROM sessions WHERE server_id = ? AND join_time > ?", [sid, now - week])) as Record<string,number>).count,
+            newLast24h: ((await getOne(db, "SELECT COUNT(*) as count FROM players WHERE first_seen > ?", [now - day])) as Record<string,number>).count,
+            newLast7d: ((await getOne(db, "SELECT COUNT(*) as count FROM players WHERE first_seen > ?", [now - week])) as Record<string,number>).count,
+            totalCommands: ((await getOne(db, "SELECT COUNT(*) as count FROM commands WHERE server_id = ?", [sid])) as Record<string,number>).count,
+            totalDeaths: ((await getOne(db, "SELECT COUNT(*) as count FROM deaths WHERE server_id = ?", [sid])) as Record<string,number>).count,
+            totalMessages: ((await getOne(db, "SELECT COUNT(*) as count FROM chat_messages WHERE server_id = ?", [sid])) as Record<string,number>).count,
+            avgPlaytime: Math.round(((await getOne(db, "SELECT AVG(total_playtime) as avg FROM players WHERE total_playtime > 0")) as Record<string,number>)?.avg || 0),
+            avgSessionCount: Math.round((((await getOne(db, "SELECT AVG(session_count) as avg FROM players")) as Record<string,number>)?.avg || 0) * 10) / 10,
           });
         }
         return NextResponse.json({
-          totalPlayers: (getOne(db, "SELECT COUNT(*) as count FROM players") as Record<string,number>).count,
-          activeLast24h: (getOne(db, "SELECT COUNT(*) as count FROM players WHERE last_seen > ?", [now - day]) as Record<string,number>).count,
-          activeLast7d: (getOne(db, "SELECT COUNT(*) as count FROM players WHERE last_seen > ?", [now - week]) as Record<string,number>).count,
-          newLast24h: (getOne(db, "SELECT COUNT(*) as count FROM players WHERE first_seen > ?", [now - day]) as Record<string,number>).count,
-          newLast7d: (getOne(db, "SELECT COUNT(*) as count FROM players WHERE first_seen > ?", [now - week]) as Record<string,number>).count,
-          totalCommands: (getOne(db, "SELECT COUNT(*) as count FROM commands") as Record<string,number>).count,
-          totalDeaths: (getOne(db, "SELECT COUNT(*) as count FROM deaths") as Record<string,number>).count,
-          totalMessages: (getOne(db, "SELECT COUNT(*) as count FROM chat_messages") as Record<string,number>).count,
-          avgPlaytime: Math.round((getOne(db, "SELECT AVG(total_playtime) as avg FROM players WHERE total_playtime > 0") as Record<string,number>)?.avg || 0),
-          avgSessionCount: Math.round(((getOne(db, "SELECT AVG(session_count) as avg FROM players") as Record<string,number>)?.avg || 0) * 10) / 10,
+          totalPlayers: ((await getOne(db, "SELECT COUNT(*) as count FROM players")) as Record<string,number>).count,
+          activeLast24h: ((await getOne(db, "SELECT COUNT(*) as count FROM players WHERE last_seen > ?", [now - day])) as Record<string,number>).count,
+          activeLast7d: ((await getOne(db, "SELECT COUNT(*) as count FROM players WHERE last_seen > ?", [now - week])) as Record<string,number>).count,
+          newLast24h: ((await getOne(db, "SELECT COUNT(*) as count FROM players WHERE first_seen > ?", [now - day])) as Record<string,number>).count,
+          newLast7d: ((await getOne(db, "SELECT COUNT(*) as count FROM players WHERE first_seen > ?", [now - week])) as Record<string,number>).count,
+          totalCommands: ((await getOne(db, "SELECT COUNT(*) as count FROM commands")) as Record<string,number>).count,
+          totalDeaths: ((await getOne(db, "SELECT COUNT(*) as count FROM deaths")) as Record<string,number>).count,
+          totalMessages: ((await getOne(db, "SELECT COUNT(*) as count FROM chat_messages")) as Record<string,number>).count,
+          avgPlaytime: Math.round(((await getOne(db, "SELECT AVG(total_playtime) as avg FROM players WHERE total_playtime > 0")) as Record<string,number>)?.avg || 0),
+          avgSessionCount: Math.round((((await getOne(db, "SELECT AVG(session_count) as avg FROM players")) as Record<string,number>)?.avg || 0) * 10) / 10,
         });
       }
 
@@ -62,8 +62,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
           const dayStart = now - (i + 1) * day, dayEnd = now - i * day;
           result.push({
             date: new Date(dayStart).toISOString().split("T")[0],
-            activePlayers: (getOne(db, `SELECT COUNT(DISTINCT player_uuid) as count FROM sessions WHERE join_time BETWEEN ? AND ? ${sWhere}`, [dayStart, dayEnd, ...sf.params]) as Record<string,number>).count,
-            newPlayers: (getOne(db, "SELECT COUNT(*) as count FROM players WHERE first_seen BETWEEN ? AND ?", [dayStart, dayEnd]) as Record<string,number>).count,
+            activePlayers: ((await getOne(db, `SELECT COUNT(DISTINCT player_uuid) as count FROM sessions WHERE join_time BETWEEN ? AND ? ${sWhere}`, [dayStart, dayEnd, ...sf.params])) as Record<string,number>).count,
+            newPlayers: ((await getOne(db, "SELECT COUNT(*) as count FROM players WHERE first_seen BETWEEN ? AND ?", [dayStart, dayEnd])) as Record<string,number>).count,
           });
         }
         return NextResponse.json(result);
@@ -72,9 +72,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
       case "stats/platforms": {
         const sid = q.get("server_id");
         if (sid && sid !== "all") {
-          return NextResponse.json(getAll(db, `SELECT p.platform, COUNT(DISTINCT p.uuid) as count FROM players p INNER JOIN sessions s ON s.player_uuid = p.uuid WHERE s.server_id = ? GROUP BY p.platform ORDER BY count DESC`, [sid]));
+          return NextResponse.json(await getAll(db, `SELECT p.platform, COUNT(DISTINCT p.uuid) as count FROM players p INNER JOIN sessions s ON s.player_uuid = p.uuid WHERE s.server_id = ? GROUP BY p.platform ORDER BY count DESC`, [sid]));
         }
-        return NextResponse.json(getAll(db, "SELECT platform, COUNT(*) as count FROM players GROUP BY platform ORDER BY count DESC"));
+        return NextResponse.json(await getAll(db, "SELECT platform, COUNT(*) as count FROM players GROUP BY platform ORDER BY count DESC"));
       }
 
       case "stats/churn": {
@@ -86,12 +86,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
           { label: "Inactif (7-30 jours)", min: 7 * day, max: 30 * day },
           { label: "Perdu (30+ jours)", min: 30 * day, max: Infinity },
         ];
-        return NextResponse.json(brackets.map(b => ({
-          label: b.label,
-          count: b.max === Infinity
-            ? (getOne(db, "SELECT COUNT(*) as count FROM players WHERE ? - last_seen >= ?", [now, b.min]) as Record<string,number>).count
-            : (getOne(db, "SELECT COUNT(*) as count FROM players WHERE ? - last_seen >= ? AND ? - last_seen < ?", [now, b.min, now, b.max]) as Record<string,number>).count,
-        })));
+        const results = [];
+        for (const b of brackets) {
+          const row = b.max === Infinity
+            ? await getOne(db, "SELECT COUNT(*) as count FROM players WHERE ? - last_seen >= ?", [now, b.min])
+            : await getOne(db, "SELECT COUNT(*) as count FROM players WHERE ? - last_seen >= ? AND ? - last_seen < ?", [now, b.min, now, b.max]);
+          results.push({ label: b.label, count: (row as Record<string,number>).count });
+        }
+        return NextResponse.json(results);
       }
 
       case "stats/commands": {
@@ -99,14 +101,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         const limit = Number(q.get("limit")) || 20;
         const sf = serverFilter(sid);
         const where = sf.where ? `WHERE ${sf.where}` : "";
-        return NextResponse.json(getAll(db, `SELECT command, COUNT(*) as count FROM commands ${where} GROUP BY command ORDER BY count DESC LIMIT ?`, [...sf.params, limit]));
+        return NextResponse.json(await getAll(db, `SELECT command, COUNT(*) as count FROM commands ${where} GROUP BY command ORDER BY count DESC LIMIT ?`, [...sf.params, limit]));
       }
 
       case "stats/peak-hours": {
         const sid = q.get("server_id");
         const sf = serverFilter(sid);
         const where = sf.where ? `WHERE ${sf.where}` : "";
-        return NextResponse.json(getAll(db, `SELECT (join_time / 3600000 % 24) as hour, COUNT(*) as count FROM sessions ${where} GROUP BY hour ORDER BY hour`, sf.params));
+        return NextResponse.json(await getAll(db, `SELECT (join_time / 3600000 % 24) as hour, COUNT(*) as count FROM sessions ${where} GROUP BY hour ORDER BY hour`, sf.params));
       }
 
       case "stats/retention": {
@@ -118,9 +120,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         const retention = [];
         for (let i = 0; i < days; i++) {
           const dayStart = now - (i + 1) * day, dayEnd = now - i * day;
-          const joined = (getOne(db, "SELECT COUNT(*) as count FROM players WHERE first_seen BETWEEN ? AND ?", [dayStart, dayEnd]) as Record<string,number>).count;
-          const returnedNextDay = (getOne(db, `SELECT COUNT(DISTINCT p.uuid) as count FROM players p INNER JOIN sessions s ON s.player_uuid = p.uuid WHERE p.first_seen BETWEEN ? AND ? AND s.join_time > ? AND s.join_time < ? ${sJoin}`, [dayStart, dayEnd, dayEnd, dayEnd + day, ...sf.params]) as Record<string,number>).count;
-          const returnedWeek = (getOne(db, `SELECT COUNT(DISTINCT p.uuid) as count FROM players p INNER JOIN sessions s ON s.player_uuid = p.uuid WHERE p.first_seen BETWEEN ? AND ? AND s.join_time > ? AND s.join_time < ? ${sJoin}`, [dayStart, dayEnd, dayEnd, dayEnd + 7 * day, ...sf.params]) as Record<string,number>).count;
+          const joined = ((await getOne(db, "SELECT COUNT(*) as count FROM players WHERE first_seen BETWEEN ? AND ?", [dayStart, dayEnd])) as Record<string,number>).count;
+          const returnedNextDay = ((await getOne(db, `SELECT COUNT(DISTINCT p.uuid) as count FROM players p INNER JOIN sessions s ON s.player_uuid = p.uuid WHERE p.first_seen BETWEEN ? AND ? AND s.join_time > ? AND s.join_time < ? ${sJoin}`, [dayStart, dayEnd, dayEnd, dayEnd + day, ...sf.params])) as Record<string,number>).count;
+          const returnedWeek = ((await getOne(db, `SELECT COUNT(DISTINCT p.uuid) as count FROM players p INNER JOIN sessions s ON s.player_uuid = p.uuid WHERE p.first_seen BETWEEN ? AND ? AND s.join_time > ? AND s.join_time < ? ${sJoin}`, [dayStart, dayEnd, dayEnd, dayEnd + 7 * day, ...sf.params])) as Record<string,number>).count;
           retention.push({
             date: new Date(dayStart).toISOString().split("T")[0],
             newPlayers: joined, returnedDay1: returnedNextDay, returnedWeek,
@@ -135,7 +137,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         const sid = q.get("server_id");
         const sf = serverFilter(sid);
         const where = sf.where ? `WHERE ${sf.where}` : "";
-        return NextResponse.json(getAll(db, `SELECT world_name, COUNT(DISTINCT player_uuid) as unique_players, COUNT(*) as total_visits, SUM(duration) as total_time FROM world_visits ${where} GROUP BY world_name ORDER BY unique_players DESC`, sf.params));
+        return NextResponse.json(await getAll(db, `SELECT world_name, COUNT(DISTINCT player_uuid) as unique_players, COUNT(*) as total_visits, SUM(duration) as total_time FROM world_visits ${where} GROUP BY world_name ORDER BY unique_players DESC`, sf.params));
       }
 
       // ==================== PLAYERS ====================
@@ -155,11 +157,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
           if (search) { query += " AND p.username LIKE ?"; params.push(`%${search}%`); }
           query += ` ORDER BY p.${sortCol} ${order} LIMIT ? OFFSET ?`;
           params.push(limit, offset);
-          const players = getAll(db, query, params);
+          const players = await getAll(db, query, params);
           let cq = `SELECT COUNT(DISTINCT p.uuid) as count FROM players p INNER JOIN sessions s ON s.player_uuid = p.uuid WHERE s.server_id = ?`;
           const cp: unknown[] = [sid];
           if (search) { cq += " AND p.username LIKE ?"; cp.push(`%${search}%`); }
-          const total = (getOne(db, cq, cp) as Record<string,number>).count;
+          const total = ((await getOne(db, cq, cp)) as Record<string,number>).count;
           return NextResponse.json({ players, total });
         }
 
@@ -168,9 +170,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         if (search) { query += " WHERE username LIKE ?"; params.push(`%${search}%`); }
         query += ` ORDER BY ${sortCol} ${order} LIMIT ? OFFSET ?`;
         params.push(limit, offset);
-        const players = getAll(db, query, params);
+        const players = await getAll(db, query, params);
         const cp = search ? [`%${search}%`] : [];
-        const total = (getOne(db, `SELECT COUNT(*) as count FROM players ${search ? "WHERE username LIKE ?" : ""}`, cp) as Record<string,number>).count;
+        const total = ((await getOne(db, `SELECT COUNT(*) as count FROM players ${search ? "WHERE username LIKE ?" : ""}`, cp)) as Record<string,number>).count;
         return NextResponse.json({ players, total });
       }
 
@@ -197,8 +199,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         if (to) { where.push("timestamp <= ?"); params.push(Number(to)); }
 
         const wc = where.length > 0 ? "WHERE " + where.join(" AND ") : "";
-        const total = (getOne(db, `SELECT COUNT(*) as count FROM logs ${wc}`, params) as Record<string,number>).count;
-        const logs = getAll(db, `SELECT * FROM logs ${wc} ORDER BY timestamp DESC LIMIT ? OFFSET ?`, [...params, limit, offset]);
+        const total = ((await getOne(db, `SELECT COUNT(*) as count FROM logs ${wc}`, params)) as Record<string,number>).count;
+        const logs = await getAll(db, `SELECT * FROM logs ${wc} ORDER BY timestamp DESC LIMIT ? OFFSET ?`, [...params, limit, offset]);
         return NextResponse.json({ logs, total });
       }
 
@@ -206,7 +208,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         const sid = q.get("server_id");
         const sf = serverFilter(sid);
         const where = sf.where ? `WHERE ${sf.where}` : "";
-        return NextResponse.json(getAll(db, `SELECT category, COUNT(*) as count FROM logs ${where} GROUP BY category ORDER BY count DESC`, sf.params));
+        return NextResponse.json(await getAll(db, `SELECT category, COUNT(*) as count FROM logs ${where} GROUP BY category ORDER BY count DESC`, sf.params));
       }
 
       case "logs/stats": {
@@ -216,13 +218,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         const w = sf.where ? `WHERE ${sf.where}` : "";
         const wAnd = sf.where ? `WHERE ${sf.where} AND` : "WHERE";
         return NextResponse.json({
-          totalLogs: (getOne(db, `SELECT COUNT(*) as count FROM logs ${w}`, sf.params) as Record<string,number>).count,
-          logsLast24h: (getOne(db, `SELECT COUNT(*) as count FROM logs ${wAnd} timestamp > ?`, [...sf.params, now - day]) as Record<string,number>).count,
-          warnings: (getOne(db, `SELECT COUNT(*) as count FROM logs ${wAnd} level = 'warning'`, sf.params) as Record<string,number>).count,
-          warningsLast24h: (getOne(db, `SELECT COUNT(*) as count FROM logs ${wAnd} level = 'warning' AND timestamp > ?`, [...sf.params, now - day]) as Record<string,number>).count,
-          topPlayers: getAll(db, `SELECT player_name, COUNT(*) as count FROM logs ${wAnd} player_name IS NOT NULL GROUP BY player_name ORDER BY count DESC LIMIT 10`, sf.params),
-          topItems: getAll(db, `SELECT item_name, COUNT(*) as count FROM logs ${wAnd} item_name IS NOT NULL AND item_name != '' GROUP BY item_name ORDER BY count DESC LIMIT 10`, sf.params),
-          topActions: getAll(db, `SELECT action, COUNT(*) as count FROM logs ${w} GROUP BY action ORDER BY count DESC LIMIT 10`, sf.params),
+          totalLogs: ((await getOne(db, `SELECT COUNT(*) as count FROM logs ${w}`, sf.params)) as Record<string,number>).count,
+          logsLast24h: ((await getOne(db, `SELECT COUNT(*) as count FROM logs ${wAnd} timestamp > ?`, [...sf.params, now - day])) as Record<string,number>).count,
+          warnings: ((await getOne(db, `SELECT COUNT(*) as count FROM logs ${wAnd} level = 'warning'`, sf.params)) as Record<string,number>).count,
+          warningsLast24h: ((await getOne(db, `SELECT COUNT(*) as count FROM logs ${wAnd} level = 'warning' AND timestamp > ?`, [...sf.params, now - day])) as Record<string,number>).count,
+          topPlayers: await getAll(db, `SELECT player_name, COUNT(*) as count FROM logs ${wAnd} player_name IS NOT NULL GROUP BY player_name ORDER BY count DESC LIMIT 10`, sf.params),
+          topItems: await getAll(db, `SELECT item_name, COUNT(*) as count FROM logs ${wAnd} item_name IS NOT NULL AND item_name != '' GROUP BY item_name ORDER BY count DESC LIMIT 10`, sf.params),
+          topActions: await getAll(db, `SELECT action, COUNT(*) as count FROM logs ${w} GROUP BY action ORDER BY count DESC LIMIT 10`, sf.params),
         });
       }
 
@@ -235,16 +237,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         const wAnd = sf.where ? `WHERE ${sf.where} AND` : "WHERE";
 
         return NextResponse.json({
-          totalBets: (getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${w}`, sf.params) as Record<string, number>).count,
-          totalBetAmount: (getOne(db, `SELECT COALESCE(SUM(bet_amount), 0) as total FROM casino_transactions ${w}`, sf.params) as Record<string, number>).total,
-          totalWinAmount: (getOne(db, `SELECT COALESCE(SUM(win_amount), 0) as total FROM casino_transactions ${w}`, sf.params) as Record<string, number>).total,
-          totalNetResult: (getOne(db, `SELECT COALESCE(SUM(net_result), 0) as total FROM casino_transactions ${w}`, sf.params) as Record<string, number>).total,
-          uniquePlayers: (getOne(db, `SELECT COUNT(DISTINCT player_uuid) as count FROM casino_transactions ${w}`, sf.params) as Record<string, number>).count,
-          betsLast24h: (getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${wAnd} timestamp > ?`, [...sf.params, now - day]) as Record<string, number>).count,
-          betsLast7d: (getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${wAnd} timestamp > ?`, [...sf.params, now - week]) as Record<string, number>).count,
-          winsCount: (getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${wAnd} net_result > 0`, sf.params) as Record<string, number>).count,
-          lossesCount: (getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${wAnd} net_result < 0`, sf.params) as Record<string, number>).count,
-          avgBet: Math.round((getOne(db, `SELECT COALESCE(AVG(bet_amount), 0) as avg FROM casino_transactions ${w}`, sf.params) as Record<string, number>).avg),
+          totalBets: ((await getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${w}`, sf.params)) as Record<string, number>).count,
+          totalBetAmount: ((await getOne(db, `SELECT COALESCE(SUM(bet_amount), 0) as total FROM casino_transactions ${w}`, sf.params)) as Record<string, number>).total,
+          totalWinAmount: ((await getOne(db, `SELECT COALESCE(SUM(win_amount), 0) as total FROM casino_transactions ${w}`, sf.params)) as Record<string, number>).total,
+          totalNetResult: ((await getOne(db, `SELECT COALESCE(SUM(net_result), 0) as total FROM casino_transactions ${w}`, sf.params)) as Record<string, number>).total,
+          uniquePlayers: ((await getOne(db, `SELECT COUNT(DISTINCT player_uuid) as count FROM casino_transactions ${w}`, sf.params)) as Record<string, number>).count,
+          betsLast24h: ((await getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${wAnd} timestamp > ?`, [...sf.params, now - day])) as Record<string, number>).count,
+          betsLast7d: ((await getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${wAnd} timestamp > ?`, [...sf.params, now - week])) as Record<string, number>).count,
+          winsCount: ((await getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${wAnd} net_result > 0`, sf.params)) as Record<string, number>).count,
+          lossesCount: ((await getOne(db, `SELECT COUNT(*) as count FROM casino_transactions ${wAnd} net_result < 0`, sf.params)) as Record<string, number>).count,
+          avgBet: Math.round(((await getOne(db, `SELECT COALESCE(AVG(bet_amount), 0) as avg FROM casino_transactions ${w}`, sf.params)) as Record<string, number>).avg),
         });
       }
 
@@ -252,7 +254,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         const sid = q.get("server_id");
         const sf = serverFilter(sid);
         const w = sf.where ? `WHERE ${sf.where}` : "";
-        return NextResponse.json(getAll(db,
+        return NextResponse.json(await getAll(db,
           `SELECT game, COUNT(*) as total_bets, SUM(bet_amount) as total_bet, SUM(win_amount) as total_won, SUM(net_result) as net, COUNT(DISTINCT player_uuid) as players FROM casino_transactions ${w} GROUP BY game ORDER BY total_bets DESC`,
           sf.params));
       }
@@ -266,9 +268,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         const result = [];
         for (let i = days - 1; i >= 0; i--) {
           const dayStart = now - (i + 1) * day, dayEnd = now - i * day;
-          const row = getOne(db,
+          const row = (await getOne(db,
             `SELECT COUNT(*) as bets, COALESCE(SUM(bet_amount), 0) as bet_total, COALESCE(SUM(win_amount), 0) as win_total, COALESCE(SUM(net_result), 0) as net FROM casino_transactions WHERE timestamp BETWEEN ? AND ? ${sWhere}`,
-            [dayStart, dayEnd, ...sf.params]) as Record<string, number>;
+            [dayStart, dayEnd, ...sf.params])) as Record<string, number>;
           result.push({
             date: new Date(dayStart).toISOString().split("T")[0],
             bets: row.bets,
@@ -285,13 +287,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         const limit = Number(q.get("limit")) || 10;
         const sf = serverFilter(sid, "c");
         const sJoin = sf.where ? `AND ${sf.where}` : "";
-        return NextResponse.json(getAll(db,
+        return NextResponse.json(await getAll(db,
           `SELECT c.player_uuid, p.username, COUNT(*) as total_bets, SUM(c.bet_amount) as total_bet, SUM(c.win_amount) as total_won, SUM(c.net_result) as net FROM casino_transactions c LEFT JOIN players p ON p.uuid = c.player_uuid WHERE 1=1 ${sJoin} GROUP BY c.player_uuid ORDER BY total_bets DESC LIMIT ?`,
           [...sf.params, limit]));
       }
 
       case "servers": {
-        return NextResponse.json(getAll(db, "SELECT * FROM servers ORDER BY server_name"));
+        return NextResponse.json(await getAll(db, "SELECT * FROM servers ORDER BY server_name"));
       }
 
       default: {
@@ -299,21 +301,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         if (path[0] === "players" && path.length === 2) {
           const uuid = path[1];
           const sid = q.get("server_id");
-          const player = getOne(db, "SELECT * FROM players WHERE uuid = ?", [uuid]);
+          const player = await getOne(db, "SELECT * FROM players WHERE uuid = ?", [uuid]);
           if (!player) return NextResponse.json({ error: "Player not found" }, { status: 404 });
           const sf = serverFilter(sid);
           const sWhere = sf.where ? `AND ${sf.where}` : "";
           return NextResponse.json({
             player,
-            sessions: getAll(db, `SELECT * FROM sessions WHERE player_uuid = ? ${sWhere} ORDER BY join_time DESC LIMIT 50`, [uuid, ...sf.params]),
-            commands: getAll(db, `SELECT * FROM commands WHERE player_uuid = ? ${sWhere} ORDER BY timestamp DESC LIMIT 100`, [uuid, ...sf.params]),
-            worlds: getAll(db, `SELECT * FROM world_visits WHERE player_uuid = ? ${sWhere} ORDER BY enter_time DESC LIMIT 100`, [uuid, ...sf.params]),
-            deaths: getAll(db, `SELECT * FROM deaths WHERE player_uuid = ? ${sWhere} ORDER BY timestamp DESC LIMIT 50`, [uuid, ...sf.params]),
-            messages: getAll(db, `SELECT * FROM chat_messages WHERE player_uuid = ? ${sWhere} ORDER BY timestamp DESC LIMIT 100`, [uuid, ...sf.params]),
-            commandStats: getAll(db, `SELECT command, COUNT(*) as count FROM commands WHERE player_uuid = ? ${sWhere} GROUP BY command ORDER BY count DESC LIMIT 20`, [uuid, ...sf.params]),
-            worldStats: getAll(db, `SELECT world_name, SUM(duration) as total_time, COUNT(*) as visits FROM world_visits WHERE player_uuid = ? ${sWhere} GROUP BY world_name ORDER BY total_time DESC`, [uuid, ...sf.params]),
-            casinoStats: getOne(db, `SELECT COUNT(*) as total_bets, COALESCE(SUM(bet_amount),0) as total_bet, COALESCE(SUM(win_amount),0) as total_won, COALESCE(SUM(net_result),0) as net FROM casino_transactions WHERE player_uuid = ? ${sWhere}`, [uuid, ...sf.params]),
-            casinoHistory: getAll(db, `SELECT * FROM casino_transactions WHERE player_uuid = ? ${sWhere} ORDER BY timestamp DESC LIMIT 50`, [uuid, ...sf.params]),
+            sessions: await getAll(db, `SELECT * FROM sessions WHERE player_uuid = ? ${sWhere} ORDER BY join_time DESC LIMIT 50`, [uuid, ...sf.params]),
+            commands: await getAll(db, `SELECT * FROM commands WHERE player_uuid = ? ${sWhere} ORDER BY timestamp DESC LIMIT 100`, [uuid, ...sf.params]),
+            worlds: await getAll(db, `SELECT * FROM world_visits WHERE player_uuid = ? ${sWhere} ORDER BY enter_time DESC LIMIT 100`, [uuid, ...sf.params]),
+            deaths: await getAll(db, `SELECT * FROM deaths WHERE player_uuid = ? ${sWhere} ORDER BY timestamp DESC LIMIT 50`, [uuid, ...sf.params]),
+            messages: await getAll(db, `SELECT * FROM chat_messages WHERE player_uuid = ? ${sWhere} ORDER BY timestamp DESC LIMIT 100`, [uuid, ...sf.params]),
+            commandStats: await getAll(db, `SELECT command, COUNT(*) as count FROM commands WHERE player_uuid = ? ${sWhere} GROUP BY command ORDER BY count DESC LIMIT 20`, [uuid, ...sf.params]),
+            worldStats: await getAll(db, `SELECT world_name, SUM(duration) as total_time, COUNT(*) as visits FROM world_visits WHERE player_uuid = ? ${sWhere} GROUP BY world_name ORDER BY total_time DESC`, [uuid, ...sf.params]),
+            casinoStats: await getOne(db, `SELECT COUNT(*) as total_bets, COALESCE(SUM(bet_amount),0) as total_bet, COALESCE(SUM(win_amount),0) as total_won, COALESCE(SUM(net_result),0) as net FROM casino_transactions WHERE player_uuid = ? ${sWhere}`, [uuid, ...sf.params]),
+            casinoHistory: await getAll(db, `SELECT * FROM casino_transactions WHERE player_uuid = ? ${sWhere} ORDER BY timestamp DESC LIMIT 50`, [uuid, ...sf.params]),
           });
         }
         return NextResponse.json({ error: "Not found" }, { status: 404 });
