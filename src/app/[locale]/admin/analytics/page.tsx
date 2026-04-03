@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import {
   Users, UserPlus, Clock, Skull, MessageSquare, Terminal,
-  TrendingUp, TrendingDown, Activity,
+  TrendingUp, TrendingDown, Activity, Dices, DollarSign,
 } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDuration, formatNumber } from "@/components/admin/AnalyticsAPI";
@@ -24,6 +24,15 @@ interface OverviewStats {
   totalMessages: number;
   avgPlaytime: number;
   avgSessionCount: number;
+}
+
+interface CasinoOverview {
+  totalBets: number;
+  totalBetAmount: number;
+  totalWinAmount: number;
+  totalNetResult: number;
+  winsCount: number;
+  lossesCount: number;
 }
 
 interface DailyData {
@@ -61,6 +70,7 @@ export default function AnalyticsDashboard() {
   const [churn, setChurn] = useState<ChurnData[]>([]);
   const [commands, setCommands] = useState<CommandData[]>([]);
   const [peakHours, setPeakHours] = useState<PeakData[]>([]);
+  const [casino, setCasino] = useState<CasinoOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const fetched = useRef(false);
@@ -76,13 +86,15 @@ export default function AnalyticsDashboard() {
       api("stats/churn"),
       api("stats/commands", { limit: "10" }),
       api("stats/peak-hours"),
-    ]).then(([s, d, p, c, cmd, ph]) => {
+      api("stats/casino"),
+    ]).then(([s, d, p, c, cmd, ph, cas]) => {
       setStats(s);
       setDaily(d);
       setPlatforms(p);
       setChurn(c);
       setCommands(cmd);
       setPeakHours(ph);
+      setCasino(cas);
       setLoading(false);
     }).catch(() => {
       setError(locale === "fr" ? "Impossible de charger les analytics. Verifiez que le web-panel est en ligne." : "Failed to load analytics. Check that the web-panel is running.");
@@ -125,6 +137,10 @@ export default function AnalyticsDashboard() {
     { label: locale === "fr" ? "Morts" : "Deaths", value: formatNumber(stats.totalDeaths), icon: Skull, color: "bg-red-50 text-red-500" },
     { label: "Messages", value: formatNumber(stats.totalMessages), icon: MessageSquare, color: "bg-cyan-50 text-cyan-500" },
     { label: locale === "fr" ? "Sessions moy." : "Avg Sessions", value: stats.avgSessionCount.toString(), icon: TrendingDown, color: "bg-emerald-50 text-emerald-500" },
+    ...(casino && casino.totalBets > 0 ? [
+      { label: locale === "fr" ? "Paris casino" : "Casino Bets", value: formatNumber(casino.totalBets), icon: Dices, color: "bg-yellow-50 text-yellow-600" },
+      { label: locale === "fr" ? "Gains casino" : "Casino Won", value: formatNumber(casino.totalWinAmount), icon: DollarSign, color: "bg-green/10 text-green" },
+    ] : []),
   ];
 
   const chartColors = {
