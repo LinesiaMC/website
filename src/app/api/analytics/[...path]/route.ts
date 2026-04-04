@@ -292,6 +292,77 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
           [...sf.params, limit]));
       }
 
+      // ==================== ECONOMY ====================
+      case "stats/economy": {
+        const sid = q.get("server_id");
+        const sf = serverFilter(sid);
+        const w = sf.where ? `WHERE ${sf.where}` : "";
+        const wCat = sf.where ? `WHERE category = 'economy' AND ${sf.where}` : "WHERE category = 'economy'";
+        const now = Date.now(), day = 86400000, week = 7 * day;
+
+        // Total money from player configs is not available here, estimate from logs
+        const shopBuys = (await getOne(db, `SELECT COUNT(*) as count, COALESCE(SUM(CAST(SUBSTR(detail, INSTR(detail, 'for ') + 4, CASE WHEN INSTR(SUBSTR(detail, INSTR(detail, 'for ') + 4), ' ') > 0 THEN INSTR(SUBSTR(detail, INSTR(detail, 'for ') + 4), ' ') - 1 ELSE LENGTH(SUBSTR(detail, INSTR(detail, 'for ') + 4)) END) AS INTEGER)), 0) as volume FROM logs ${wCat} AND action = 'ShopBuy'`, sf.params)) as Record<string, number> | null;
+        const shopSells = (await getOne(db, `SELECT COUNT(*) as count, COALESCE(SUM(CAST(SUBSTR(detail, INSTR(detail, 'for ') + 4, CASE WHEN INSTR(SUBSTR(detail, INSTR(detail, 'for ') + 4), ' ') > 0 THEN INSTR(SUBSTR(detail, INSTR(detail, 'for ') + 4), ' ') - 1 ELSE LENGTH(SUBSTR(detail, INSTR(detail, 'for ') + 4)) END) AS INTEGER)), 0) as volume FROM logs ${wCat} AND action IN ('ShopSell', 'SellAll')`, sf.params)) as Record<string, number> | null;
+        const marketBuys = (await getOne(db, `SELECT COUNT(*) as count FROM logs ${wCat} AND action = 'MarketBuy'`, sf.params)) as Record<string, number>;
+        const marketSells = (await getOne(db, `SELECT COUNT(*) as count FROM logs ${wCat} AND action = 'MarketSell'`, sf.params)) as Record<string, number>;
+        const pays = (await getOne(db, `SELECT COUNT(*) as count FROM logs ${wCat} AND action = 'Pay'`, sf.params)) as Record<string, number>;
+        const txLast24h = (await getOne(db, `SELECT COUNT(*) as count FROM logs ${wCat} AND timestamp > ?`, [...sf.params, now - day])) as Record<string, number>;
+        const txLast7d = (await getOne(db, `SELECT COUNT(*) as count FROM logs ${wCat} AND timestamp > ?`, [...sf.params, now - week])) as Record<string, number>;
+
+        return NextResponse.json({
+          shopBuyCount: shopBuys?.count || 0,
+          shopBuyVolume: shopBuys?.volume || 0,
+          shopSellCount: shopSells?.count || 0,
+          shopSellVolume: shopSells?.volume || 0,
+          marketBuyCount: marketBuys.count,
+          marketSellCount: marketSells.count,
+          payCount: pays.count,
+          txLast24h: txLast24h.count,
+          txLast7d: txLast7d.count,
+        });
+      }
+
+      case "stats/economy/top-items": {
+        const sid = q.get("server_id");
+        const sf = serverFilter(sid);
+        const wCat = sf.where ? `WHERE category = 'economy' AND ${sf.where}` : "WHERE category = 'economy'";
+        return NextResponse.json(await getAll(db,
+          `SELECT item_name, action, COUNT(*) as tx_count, SUM(item_count) as total_qty FROM logs ${wCat} AND item_name IS NOT NULL AND item_name != '' GROUP BY item_name, action ORDER BY tx_count DESC LIMIT 30`,
+          sf.params));
+      }
+
+      case "stats/economy/daily": {
+        const days = Number(q.get("days")) || 30;
+        const sid = q.get("server_id");
+        const now = Date.now(), day = 86400000;
+        const sf = serverFilter(sid);
+        const sWhere = sf.where ? `AND ${sf.where}` : "";
+        const result = [];
+        for (let i = days - 1; i >= 0; i--) {
+          const dayStart = now - (i + 1) * day, dayEnd = now - i * day;
+          const buys = (await getOne(db, `SELECT COUNT(*) as count FROM logs WHERE category = 'economy' AND action = 'ShopBuy' AND timestamp BETWEEN ? AND ? ${sWhere}`, [dayStart, dayEnd, ...sf.params])) as Record<string, number>;
+          const sells = (await getOne(db, `SELECT COUNT(*) as count FROM logs WHERE category = 'economy' AND action IN ('ShopSell', 'SellAll') AND timestamp BETWEEN ? AND ? ${sWhere}`, [dayStart, dayEnd, ...sf.params])) as Record<string, number>;
+          const market = (await getOne(db, `SELECT COUNT(*) as count FROM logs WHERE category = 'economy' AND action IN ('MarketBuy', 'MarketSell') AND timestamp BETWEEN ? AND ? ${sWhere}`, [dayStart, dayEnd, ...sf.params])) as Record<string, number>;
+          result.push({
+            date: new Date(dayStart).toISOString().split("T")[0],
+            shopBuys: buys.count,
+            shopSells: sells.count,
+            marketTx: market.count,
+          });
+        }
+        return NextResponse.json(result);
+      }
+
+      case "stats/economy/top-spenders": {
+        const sid = q.get("server_id");
+        const limit = Number(q.get("limit")) || 10;
+        const sf = serverFilter(sid);
+        const wCat = sf.where ? `WHERE category = 'economy' AND ${sf.where}` : "WHERE category = 'economy'";
+        return NextResponse.json(await getAll(db,
+          `SELECT player_name, COUNT(*) as tx_count, SUM(CASE WHEN action = 'ShopBuy' THEN 1 ELSE 0 END) as buys, SUM(CASE WHEN action IN ('ShopSell','SellAll') THEN 1 ELSE 0 END) as sells, SUM(CASE WHEN action = 'Pay' THEN 1 ELSE 0 END) as pays FROM logs ${wCat} AND player_name IS NOT NULL GROUP BY player_name ORDER BY tx_count DESC LIMIT ?`,
+          [...sf.params, limit]));
+      }
+
       case "servers": {
         return NextResponse.json(await getAll(db, "SELECT * FROM servers ORDER BY server_name"));
       }

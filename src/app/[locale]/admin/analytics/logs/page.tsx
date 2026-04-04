@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { ScrollText, Search, Activity, ChevronLeft, ChevronRight, AlertTriangle, Info } from "lucide-react";
+import { ScrollText, Search, Activity, ChevronLeft, ChevronRight, AlertTriangle, Info, X, MapPin, Package, User, Clock } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDate } from "@/components/admin/AnalyticsAPI";
 
@@ -36,6 +36,97 @@ interface LogStats {
   topActions: { action: string; count: number }[];
 }
 
+function LogDetailModal({ log, locale, onClose }: { log: LogEntry; locale: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="mc-card p-0 w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className={`px-5 py-3 flex items-center justify-between ${log.level === "warning" ? "bg-orange-50" : "bg-bg-soft"}`}>
+          <div className="flex items-center gap-2">
+            {log.level === "warning" ? <AlertTriangle size={15} className="text-orange-500" /> : <Info size={15} className="text-pink" />}
+            <span className="text-[13px] font-bold text-text">{log.category} / {log.action}</span>
+          </div>
+          <button onClick={onClose} className="p-1 rounded hover:bg-black/5 transition-colors">
+            <X size={16} className="text-text-sub" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-3">
+          {/* Player */}
+          <div className="flex items-start gap-3">
+            <User size={14} className="text-text-muted mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[11px] text-text-muted">{locale === "fr" ? "Joueur" : "Player"}</p>
+              <p className="text-[13px] font-medium text-text">{log.player_name || "-"}</p>
+              {log.player_uuid && <p className="text-[10px] text-text-muted font-mono">{log.player_uuid}</p>}
+            </div>
+          </div>
+
+          {/* Target */}
+          {log.target_player && (
+            <div className="flex items-start gap-3">
+              <User size={14} className="text-violet mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[11px] text-text-muted">{locale === "fr" ? "Cible" : "Target"}</p>
+                <p className="text-[13px] font-medium text-text">{log.target_player}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Detail */}
+          {log.detail && (
+            <div className="flex items-start gap-3">
+              <Info size={14} className="text-text-muted mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[11px] text-text-muted">Detail</p>
+                <p className="text-[13px] text-text break-all">{log.detail}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Item */}
+          {log.item_name && (
+            <div className="flex items-start gap-3">
+              <Package size={14} className="text-text-muted mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[11px] text-text-muted">Item</p>
+                <p className="text-[13px] text-text">
+                  {log.item_name}{log.item_count && log.item_count > 1 ? ` x${log.item_count}` : ""}
+                </p>
+                {log.item_uid && <p className="text-[10px] text-text-muted font-mono">UID: {log.item_uid}</p>}
+              </div>
+            </div>
+          )}
+
+          {/* Location */}
+          {log.world && (
+            <div className="flex items-start gap-3">
+              <MapPin size={14} className="text-text-muted mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[11px] text-text-muted">{locale === "fr" ? "Position" : "Location"}</p>
+                <p className="text-[13px] text-text">
+                  {log.world}
+                  {log.x != null && <span className="text-text-muted"> ({log.x}, {log.y}, {log.z})</span>}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Time + Server */}
+          <div className="flex items-start gap-3">
+            <Clock size={14} className="text-text-muted mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[11px] text-text-muted">Date</p>
+              <p className="text-[13px] text-text">{formatDate(log.timestamp)}</p>
+              {log.server_id && <p className="text-[10px] text-text-muted">Server: {log.server_id}</p>}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LogsPage() {
   const { locale } = useParams<{ locale: string }>();
   const { headers } = useAdmin();
@@ -45,6 +136,7 @@ export default function LogsPage() {
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
 
   // Filters
   const [player, setPlayer] = useState("");
@@ -58,7 +150,6 @@ export default function LogsPage() {
   const limit = 50;
   const api = useRef(createAnalyticsFetcher(headers)).current;
 
-  // Load categories + stats once
   useEffect(() => {
     Promise.all([
       api("logs/categories"),
@@ -115,6 +206,8 @@ export default function LogsPage() {
 
   return (
     <div className="max-w-[1200px] mx-auto px-6 py-8">
+      {selectedLog && <LogDetailModal log={selectedLog} locale={locale} onClose={() => setSelectedLog(null)} />}
+
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-xl bg-pink flex items-center justify-center">
           <ScrollText size={18} className="text-white" />
@@ -222,7 +315,7 @@ export default function LogsPage() {
                   <th className="text-left px-3 py-2.5 font-semibold text-text-sub">{locale === "fr" ? "Joueur" : "Player"}</th>
                   <th className="text-left px-3 py-2.5 font-semibold text-text-sub">{locale === "fr" ? "Categorie" : "Category"}</th>
                   <th className="text-left px-3 py-2.5 font-semibold text-text-sub">Action</th>
-                  <th className="text-left px-3 py-2.5 font-semibold text-text-sub">{locale === "fr" ? "Detail" : "Detail"}</th>
+                  <th className="text-left px-3 py-2.5 font-semibold text-text-sub">Detail</th>
                   <th className="text-left px-3 py-2.5 font-semibold text-text-sub">Item</th>
                   <th className="text-left px-3 py-2.5 font-semibold text-text-sub">{locale === "fr" ? "Monde" : "World"}</th>
                   <th className="text-left px-3 py-2.5 font-semibold text-text-sub">Date</th>
@@ -230,7 +323,11 @@ export default function LogsPage() {
               </thead>
               <tbody>
                 {logs.map((log) => (
-                  <tr key={log.id} className={`border-b border-border/50 ${log.level === "warning" ? "bg-orange-50/50" : ""}`}>
+                  <tr
+                    key={log.id}
+                    onClick={() => setSelectedLog(log)}
+                    className={`border-b border-border/50 cursor-pointer hover:bg-pink/5 transition-colors ${log.level === "warning" ? "bg-orange-50/50" : ""}`}
+                  >
                     <td className="px-3 py-2">
                       {log.level === "warning" ? (
                         <AlertTriangle size={13} className="text-orange-500" />

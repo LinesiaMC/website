@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import {
   Lock, LogOut, Newspaper, BarChart3, Users, TrendingUp,
-  Globe, ScrollText, ChevronLeft, ChevronRight, LayoutDashboard, Dices,
+  Globe, ScrollText, ChevronLeft, ChevronRight, LayoutDashboard, Dices, Coins,
 } from "lucide-react";
 
 interface AdminShellProps {
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { key: "players", icon: Users, path: "/admin/analytics/players" },
   { key: "retention", icon: TrendingUp, path: "/admin/analytics/retention" },
   { key: "worlds", icon: Globe, path: "/admin/analytics/worlds" },
+  { key: "economy", icon: Coins, path: "/admin/analytics/economy" },
   { key: "casino", icon: Dices, path: "/admin/analytics/casino" },
   { key: "logs", icon: ScrollText, path: "/admin/analytics/logs" },
 ];
@@ -28,6 +29,7 @@ const NAV_LABELS: Record<string, { fr: string; en: string }> = {
   players: { fr: "Joueurs", en: "Players" },
   retention: { fr: "Retention", en: "Retention" },
   worlds: { fr: "Mondes", en: "Worlds" },
+  economy: { fr: "Economie", en: "Economy" },
   casino: { fr: "Casino", en: "Casino" },
   logs: { fr: "Logs", en: "Logs" },
 };
