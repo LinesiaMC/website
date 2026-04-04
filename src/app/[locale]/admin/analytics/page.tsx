@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
   Users, UserPlus, Clock, Skull, MessageSquare, Terminal,
@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDuration, formatNumber } from "@/components/admin/AnalyticsAPI";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler } from "chart.js";
 import { Line, Doughnut, Bar } from "react-chartjs-2";
 
@@ -73,12 +74,9 @@ export default function AnalyticsDashboard() {
   const [casino, setCasino] = useState<CasinoOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const fetched = useRef(false);
+  const api = useRef(createAnalyticsFetcher(headers)).current;
 
-  useEffect(() => {
-    if (fetched.current) return;
-    fetched.current = true;
-    const api = createAnalyticsFetcher(headers);
+  const loadData = useCallback(() => {
     Promise.all([
       api("stats/overview"),
       api("stats/daily-players", { days: "30" }),
@@ -100,7 +98,10 @@ export default function AnalyticsDashboard() {
       setError(locale === "fr" ? "Impossible de charger les analytics. Verifiez que le web-panel est en ligne." : "Failed to load analytics. Check that the web-panel is running.");
       setLoading(false);
     });
-  }, [headers, locale]);
+  }, [api, locale]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+  useAutoRefresh(loadData);
 
   if (loading) {
     return (

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
   Box, Activity, Users, Gift, Trophy, Clock,
 } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatNumber } from "@/components/admin/AnalyticsAPI";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler } from "chart.js";
 import { Line, Bar, Doughnut } from "react-chartjs-2";
 
@@ -35,12 +36,9 @@ export default function BoxesPage() {
   const [daily, setDaily] = useState<DailyBox[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const fetched = useRef(false);
+  const api = useRef(createAnalyticsFetcher(headers)).current;
 
-  useEffect(() => {
-    if (fetched.current) return;
-    fetched.current = true;
-    const api = createAnalyticsFetcher(headers);
+  const loadData = useCallback(() => {
     Promise.all([
       api("stats/boxes"),
       api("stats/boxes/daily", { days: "30" }),
@@ -52,7 +50,10 @@ export default function BoxesPage() {
       setError(locale === "fr" ? "Impossible de charger les stats boxes." : "Failed to load box stats.");
       setLoading(false);
     });
-  }, [headers, locale]);
+  }, [api, locale]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+  useAutoRefresh(loadData);
 
   if (loading) {
     return (

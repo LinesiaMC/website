@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { ScrollText, Search, Activity, ChevronLeft, ChevronRight, AlertTriangle, Info, X, MapPin, Package, User, Clock, Skull, Swords, Backpack } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDate } from "@/components/admin/AnalyticsAPI";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 interface LogEntry {
   id: number;
@@ -265,6 +266,7 @@ export default function LogsPage() {
   }, [api, page, player, category, action, item, level, searchText, locale]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
+  useAutoRefresh(fetchLogs);
 
   const totalPages = Math.ceil(total / limit);
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Activity, Clock, Terminal, Globe, Skull, MessageSquare } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDuration, formatDate } from "@/components/admin/AnalyticsAPI";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 interface PlayerDetail {
   player: {
@@ -33,12 +34,15 @@ export default function PlayerDetailPage() {
   const [tab, setTab] = useState<"sessions" | "commands" | "worlds" | "deaths" | "messages">("sessions");
   const api = useRef(createAnalyticsFetcher(headers)).current;
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     api(`players/${uuid}`).then((d) => {
       setData(d);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [api, uuid]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+  useAutoRefresh(loadData);
 
   if (loading) {
     return (

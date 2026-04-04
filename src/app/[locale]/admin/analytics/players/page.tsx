@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Users, Search, ChevronLeft, ChevronRight, Activity } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDuration, formatDate } from "@/components/admin/AnalyticsAPI";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 interface Player {
   uuid: string;
@@ -29,7 +30,7 @@ export default function PlayersPage() {
   const limit = 30;
   const api = useRef(createAnalyticsFetcher(headers)).current;
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     setLoading(true);
     const params: Record<string, string> = {
       limit: limit.toString(),
@@ -50,6 +51,9 @@ export default function PlayersPage() {
         setLoading(false);
       });
   }, [api, page, search, sort, locale]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+  useAutoRefresh(loadData);
 
   const totalPages = Math.ceil(total / limit);
 

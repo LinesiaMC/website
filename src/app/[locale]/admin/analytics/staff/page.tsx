@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
   Shield, ShieldBan, ShieldAlert, ShieldCheck, UserX, Lock,
@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatNumber } from "@/components/admin/AnalyticsAPI";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler } from "chart.js";
 import { Line, Doughnut, Bar } from "react-chartjs-2";
 
@@ -96,12 +97,9 @@ export default function StaffPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
-  const fetched = useRef(false);
+  const api = useRef(createAnalyticsFetcher(headers)).current;
 
-  useEffect(() => {
-    if (fetched.current) return;
-    fetched.current = true;
-    const api = createAnalyticsFetcher(headers);
+  const loadData = useCallback(() => {
     Promise.all([
       api("staff/overview"),
       api("staff/leaderboard"),
@@ -119,7 +117,10 @@ export default function StaffPage() {
       setError(locale === "fr" ? "Impossible de charger les statistiques staff." : "Failed to load staff statistics.");
       setLoading(false);
     });
-  }, [headers, locale]);
+  }, [api, locale]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+  useAutoRefresh(loadData);
 
   if (loading) {
     return (

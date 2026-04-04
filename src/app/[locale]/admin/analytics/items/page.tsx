@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatNumber } from "@/components/admin/AnalyticsAPI";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler } from "chart.js";
 import { Bar, Line } from "react-chartjs-2";
 
@@ -59,6 +60,7 @@ export default function ItemsPage() {
   }, [api, search, locale]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
+  useAutoRefresh(fetchItems);
 
   // Fetch daily chart for selected item or all
   useEffect(() => {

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Globe, Activity } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDuration } from "@/components/admin/AnalyticsAPI";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend } from "chart.js";
 import { Bar } from "react-chartjs-2";
 
@@ -25,11 +26,14 @@ export default function WorldsPage() {
   const [error, setError] = useState("");
   const api = useRef(createAnalyticsFetcher(headers)).current;
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     api("stats/worlds")
       .then((data) => { setWorlds(data); setLoading(false); })
       .catch(() => { setError(locale === "fr" ? "Erreur de chargement" : "Loading error"); setLoading(false); });
   }, [api, locale]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+  useAutoRefresh(loadData);
 
   if (error) {
     return (

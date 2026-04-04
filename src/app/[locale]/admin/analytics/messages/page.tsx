@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { MessageSquare, Search, Activity, ChevronLeft, ChevronRight, Lock, Users, Shield } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDate } from "@/components/admin/AnalyticsAPI";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 interface LogEntry {
   id: number;
@@ -102,6 +103,7 @@ export default function MessagesPage() {
   }, [api, page, player, chatType, searchText, locale]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
+  useAutoRefresh(fetchLogs);
 
   const totalPages = Math.ceil(total / limit);
 

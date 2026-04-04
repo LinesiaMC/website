@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { TrendingUp, Activity } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher } from "@/components/admin/AnalyticsAPI";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler } from "chart.js";
 import { Line } from "react-chartjs-2";
 
@@ -34,12 +35,14 @@ export default function RetentionPage() {
   const [days, setDays] = useState("30");
   const api = useRef(createAnalyticsFetcher(headers)).current;
 
-  useEffect(() => {
-    setLoading(true);
+  const loadData = useCallback(() => {
     api("stats/retention", { days })
       .then((data) => { setRetention(data); setLoading(false); })
       .catch(() => { setError(locale === "fr" ? "Erreur de chargement" : "Loading error"); setLoading(false); });
   }, [api, days, locale]);
+
+  useEffect(() => { setLoading(true); loadData(); }, [loadData]);
+  useAutoRefresh(loadData);
 
   if (error) {
     return (
