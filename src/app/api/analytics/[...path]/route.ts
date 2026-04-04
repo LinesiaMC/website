@@ -363,6 +363,122 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
           [...sf.params, limit]));
       }
 
+      // ==================== ECONOMY CIRCULATION ====================
+      case "stats/economy/circulation": {
+        const sid = q.get("server_id");
+        const sf = serverFilter(sid);
+        const w = sf.where ? `WHERE ${sf.where}` : "";
+        // Latest snapshot
+        const latest = await getOne(db, `SELECT * FROM economy_snapshots ${w} ORDER BY timestamp DESC LIMIT 1`, sf.params);
+        // History (last 30 snapshots)
+        const history = await getAll(db, `SELECT total_money, player_count, avg_money, timestamp FROM economy_snapshots ${w} ORDER BY timestamp DESC LIMIT 30`, sf.params);
+        return NextResponse.json({ latest, history: history.reverse() });
+      }
+
+      // ==================== ITEMS CIRCULATION ====================
+      case "stats/items/circulation": {
+        const sid = q.get("server_id");
+        const search = q.get("search");
+        const limit = Number(q.get("limit")) || 50;
+        const sf = serverFilter(sid);
+        const wCat = sf.where ? `WHERE category = 'economy' AND ${sf.where}` : "WHERE category = 'economy'";
+
+        // Aggregate items: buys add items to players, sells remove items from players
+        // Also include crafts and box openings
+        const items = await getAll(db, `
+          SELECT
+            item_name,
+            SUM(CASE WHEN action IN ('ShopBuy', 'MarketBuy') THEN COALESCE(item_count, 1) ELSE 0 END) as bought,
+            SUM(CASE WHEN action IN ('ShopSell', 'SellAll', 'MarketSell') THEN COALESCE(item_count, 1) ELSE 0 END) as sold,
+            SUM(CASE WHEN action = 'Craft' THEN COALESCE(item_count, 1) ELSE 0 END) as crafted,
+            SUM(CASE WHEN action = 'BoxOpen' THEN COALESCE(item_count, 1) ELSE 0 END) as from_boxes,
+            COUNT(*) as total_tx
+          FROM logs
+          ${sf.where ? `WHERE ${sf.where} AND` : "WHERE"}
+            item_name IS NOT NULL AND item_name != ''
+            AND category IN ('economy', 'craft', 'box')
+            ${search ? "AND item_name LIKE ?" : ""}
+          GROUP BY item_name
+          ORDER BY total_tx DESC
+          LIMIT ?
+        `, [...sf.params, ...(search ? [`%${search}%`] : []), limit]);
+
+        // Summary stats
+        const totalUniqueItems = (await getOne(db, `SELECT COUNT(DISTINCT item_name) as count FROM logs ${sf.where ? `WHERE ${sf.where} AND` : "WHERE"} item_name IS NOT NULL AND item_name != '' AND category IN ('economy', 'craft', 'box')`, sf.params)) as Record<string, number>;
+        const totalTx = (await getOne(db, `SELECT COUNT(*) as count FROM logs ${sf.where ? `WHERE ${sf.where} AND` : "WHERE"} item_name IS NOT NULL AND item_name != '' AND category IN ('economy', 'craft', 'box')`, sf.params)) as Record<string, number>;
+
+        return NextResponse.json({
+          items,
+          totalUniqueItems: totalUniqueItems.count,
+          totalTransactions: totalTx.count,
+        });
+      }
+
+      case "stats/items/daily": {
+        const days = Number(q.get("days")) || 14;
+        const itemName = q.get("item");
+        const sid = q.get("server_id");
+        const now = Date.now(), day = 86400000;
+        const sf = serverFilter(sid);
+        const sWhere = sf.where ? `AND ${sf.where}` : "";
+        const itemFilter = itemName ? "AND item_name = ?" : "";
+        const result = [];
+        for (let i = days - 1; i >= 0; i--) {
+          const dayStart = now - (i + 1) * day, dayEnd = now - i * day;
+          const params = [dayStart, dayEnd, ...sf.params, ...(itemName ? [itemName] : [])];
+          const row = (await getOne(db, `SELECT
+            SUM(CASE WHEN action IN ('ShopBuy', 'MarketBuy') THEN COALESCE(item_count, 1) ELSE 0 END) as bought,
+            SUM(CASE WHEN action IN ('ShopSell', 'SellAll', 'MarketSell') THEN COALESCE(item_count, 1) ELSE 0 END) as sold,
+            SUM(CASE WHEN action = 'Craft' THEN COALESCE(item_count, 1) ELSE 0 END) as crafted
+          FROM logs WHERE timestamp BETWEEN ? AND ? ${sWhere} AND item_name IS NOT NULL AND category IN ('economy', 'craft', 'box') ${itemFilter}`, params)) as Record<string, number>;
+          result.push({
+            date: new Date(dayStart).toISOString().split("T")[0],
+            bought: row?.bought || 0,
+            sold: row?.sold || 0,
+            crafted: row?.crafted || 0,
+          });
+        }
+        return NextResponse.json(result);
+      }
+
+      // ==================== BOXES ====================
+      case "stats/boxes": {
+        const sid = q.get("server_id");
+        const sf = serverFilter(sid);
+        const wCat = sf.where ? `WHERE category = 'box' AND ${sf.where}` : "WHERE category = 'box'";
+        const wCatAnd = sf.where ? `WHERE category = 'box' AND ${sf.where} AND` : "WHERE category = 'box' AND";
+        const now = Date.now(), day = 86400000, week = 7 * day;
+
+        return NextResponse.json({
+          totalOpened: ((await getOne(db, `SELECT COUNT(*) as count FROM logs ${wCat}`, sf.params)) as Record<string, number>).count,
+          openedLast24h: ((await getOne(db, `SELECT COUNT(*) as count FROM logs ${wCatAnd} timestamp > ?`, [...sf.params, now - day])) as Record<string, number>).count,
+          openedLast7d: ((await getOne(db, `SELECT COUNT(*) as count FROM logs ${wCatAnd} timestamp > ?`, [...sf.params, now - week])) as Record<string, number>).count,
+          uniquePlayers: ((await getOne(db, `SELECT COUNT(DISTINCT player_uuid) as count FROM logs ${wCat}`, sf.params)) as Record<string, number>).count,
+          topBoxTypes: await getAll(db, `SELECT action as box_type, COUNT(*) as open_count, COUNT(DISTINCT player_uuid) as unique_players FROM logs ${wCat} GROUP BY action ORDER BY open_count DESC LIMIT 20`, sf.params),
+          topRewards: await getAll(db, `SELECT item_name, SUM(COALESCE(item_count, 1)) as total_qty, COUNT(*) as times_obtained FROM logs ${wCatAnd} item_name IS NOT NULL AND item_name != '' GROUP BY item_name ORDER BY times_obtained DESC LIMIT 20`, sf.params),
+          topOpeners: await getAll(db, `SELECT player_name, COUNT(*) as open_count FROM logs ${wCatAnd} player_name IS NOT NULL GROUP BY player_name ORDER BY open_count DESC LIMIT 10`, sf.params),
+        });
+      }
+
+      case "stats/boxes/daily": {
+        const days = Number(q.get("days")) || 30;
+        const sid = q.get("server_id");
+        const now = Date.now(), day = 86400000;
+        const sf = serverFilter(sid);
+        const sWhere = sf.where ? `AND ${sf.where}` : "";
+        const result = [];
+        for (let i = days - 1; i >= 0; i--) {
+          const dayStart = now - (i + 1) * day, dayEnd = now - i * day;
+          const row = (await getOne(db, `SELECT COUNT(*) as opens, COUNT(DISTINCT player_uuid) as players FROM logs WHERE category = 'box' AND timestamp BETWEEN ? AND ? ${sWhere}`, [dayStart, dayEnd, ...sf.params])) as Record<string, number>;
+          result.push({
+            date: new Date(dayStart).toISOString().split("T")[0],
+            opens: row?.opens || 0,
+            players: row?.players || 0,
+          });
+        }
+        return NextResponse.json(result);
+      }
+
       case "servers": {
         return NextResponse.json(await getAll(db, "SELECT * FROM servers ORDER BY server_name"));
       }

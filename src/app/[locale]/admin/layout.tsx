@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   Lock, LogOut, Newspaper, BarChart3, Users, TrendingUp,
   Globe, ScrollText, ChevronLeft, ChevronRight, LayoutDashboard,
+  Coins, Dices, Gem, Box,
 } from "lucide-react";
 import { AdminContext } from "@/components/admin/AdminContext";
 
@@ -15,6 +16,10 @@ const NAV_ITEMS = [
   { key: "players", icon: Users, path: "/admin/analytics/players" },
   { key: "retention", icon: TrendingUp, path: "/admin/analytics/retention" },
   { key: "worlds", icon: Globe, path: "/admin/analytics/worlds" },
+  { key: "economy", icon: Coins, path: "/admin/analytics/economy" },
+  { key: "items", icon: Gem, path: "/admin/analytics/items" },
+  { key: "casino", icon: Dices, path: "/admin/analytics/casino" },
+  { key: "boxes", icon: Box, path: "/admin/analytics/boxes" },
   { key: "logs", icon: ScrollText, path: "/admin/analytics/logs" },
 ];
 
@@ -24,6 +29,10 @@ const NAV_LABELS: Record<string, { fr: string; en: string }> = {
   players: { fr: "Joueurs", en: "Players" },
   retention: { fr: "Retention", en: "Retention" },
   worlds: { fr: "Mondes", en: "Worlds" },
+  economy: { fr: "Economie", en: "Economy" },
+  items: { fr: "Items", en: "Items" },
+  casino: { fr: "Casino", en: "Casino" },
+  boxes: { fr: "Boxes", en: "Boxes" },
   logs: { fr: "Logs", en: "Logs" },
 };
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { ScrollText, Search, Activity, ChevronLeft, ChevronRight, AlertTriangle, Info, X, MapPin, Package, User, Clock } from "lucide-react";
+import { ScrollText, Search, Activity, ChevronLeft, ChevronRight, AlertTriangle, Info, X, MapPin, Package, User, Clock, Skull, Swords, Backpack } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDate } from "@/components/admin/AnalyticsAPI";
 
@@ -36,14 +36,46 @@ interface LogStats {
   topActions: { action: string; count: number }[];
 }
 
+function parseDeathDetail(detail: string | null): { cause?: string; killer?: string; killer_uuid?: string; victim_inventory?: { name: string; count: number }[]; killer_inventory?: { name: string; count: number }[]; raw?: string } | null {
+  if (!detail) return null;
+  try {
+    const parsed = JSON.parse(detail);
+    if (typeof parsed === "object" && parsed !== null && (parsed.cause || parsed.killer || parsed.victim_inventory)) {
+      return parsed;
+    }
+  } catch {
+    // Not JSON, return as raw text
+  }
+  return { raw: detail };
+}
+
+function InventoryList({ items, label }: { items: { name: string; count: number }[]; label: string }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div>
+      <p className="text-[11px] text-text-muted mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((item, i) => (
+          <span key={i} className="px-2 py-0.5 rounded bg-bg-soft text-[11px] text-text-sub font-medium">
+            {item.name}{item.count > 1 ? ` x${item.count}` : ""}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function LogDetailModal({ log, locale, onClose }: { log: LogEntry; locale: string; onClose: () => void }) {
+  const isDeath = log.category === "death";
+  const deathData = isDeath ? parseDeathDetail(log.detail) : null;
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="mc-card p-0 w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="mc-card p-0 w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className={`px-5 py-3 flex items-center justify-between ${log.level === "warning" ? "bg-orange-50" : "bg-bg-soft"}`}>
+        <div className={`px-5 py-3 flex items-center justify-between shrink-0 ${isDeath ? "bg-red-50" : log.level === "warning" ? "bg-orange-50" : "bg-bg-soft"}`}>
           <div className="flex items-center gap-2">
-            {log.level === "warning" ? <AlertTriangle size={15} className="text-orange-500" /> : <Info size={15} className="text-pink" />}
+            {isDeath ? <Skull size={15} className="text-red-500" /> : log.level === "warning" ? <AlertTriangle size={15} className="text-orange-500" /> : <Info size={15} className="text-pink" />}
             <span className="text-[13px] font-bold text-text">{log.category} / {log.action}</span>
           </div>
           <button onClick={onClose} className="p-1 rounded hover:bg-black/5 transition-colors">
@@ -51,7 +83,7 @@ function LogDetailModal({ log, locale, onClose }: { log: LogEntry; locale: strin
           </button>
         </div>
 
-        <div className="px-5 py-4 space-y-3">
+        <div className="px-5 py-4 space-y-3 overflow-y-auto">
           {/* Player */}
           <div className="flex items-start gap-3">
             <User size={14} className="text-text-muted mt-0.5 shrink-0" />
@@ -62,7 +94,50 @@ function LogDetailModal({ log, locale, onClose }: { log: LogEntry; locale: strin
             </div>
           </div>
 
-          {/* Target */}
+          {/* Death-specific: Killer */}
+          {isDeath && deathData && deathData.killer && (
+            <div className="flex items-start gap-3">
+              <Swords size={14} className="text-red-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[11px] text-text-muted">{locale === "fr" ? "Tue par" : "Killed by"}</p>
+                <p className="text-[13px] font-semibold text-red-600">{deathData.killer}</p>
+                {deathData.killer_uuid && <p className="text-[10px] text-text-muted font-mono">{deathData.killer_uuid}</p>}
+              </div>
+            </div>
+          )}
+
+          {/* Death cause */}
+          {isDeath && deathData && deathData.cause && (
+            <div className="flex items-start gap-3">
+              <Skull size={14} className="text-text-muted mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[11px] text-text-muted">{locale === "fr" ? "Cause" : "Cause"}</p>
+                <p className="text-[13px] text-text">{deathData.cause}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Death: Victim inventory */}
+          {isDeath && deathData?.victim_inventory && deathData.victim_inventory.length > 0 && (
+            <div className="flex items-start gap-3">
+              <Backpack size={14} className="text-orange-500 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <InventoryList items={deathData.victim_inventory} label={locale === "fr" ? "Inventaire de la victime" : "Victim's Inventory"} />
+              </div>
+            </div>
+          )}
+
+          {/* Death: Killer inventory */}
+          {isDeath && deathData?.killer_inventory && deathData.killer_inventory.length > 0 && (
+            <div className="flex items-start gap-3">
+              <Backpack size={14} className="text-red-500 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <InventoryList items={deathData.killer_inventory} label={locale === "fr" ? "Inventaire du tueur" : "Killer's Inventory"} />
+              </div>
+            </div>
+          )}
+
+          {/* Target (non-death) */}
           {log.target_player && (
             <div className="flex items-start gap-3">
               <User size={14} className="text-violet mt-0.5 shrink-0" />
@@ -73,13 +148,13 @@ function LogDetailModal({ log, locale, onClose }: { log: LogEntry; locale: strin
             </div>
           )}
 
-          {/* Detail */}
-          {log.detail && (
+          {/* Detail (non-death or raw death text) */}
+          {log.detail && (!isDeath || (deathData?.raw)) && (
             <div className="flex items-start gap-3">
               <Info size={14} className="text-text-muted mt-0.5 shrink-0" />
               <div>
                 <p className="text-[11px] text-text-muted">Detail</p>
-                <p className="text-[13px] text-text break-all">{log.detail}</p>
+                <p className="text-[13px] text-text break-all">{isDeath && deathData?.raw ? deathData.raw : log.detail}</p>
               </div>
             </div>
           )}

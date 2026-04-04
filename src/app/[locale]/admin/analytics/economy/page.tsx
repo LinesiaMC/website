@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import {
   Coins, ShoppingCart, Store, ArrowRightLeft, Activity,
-  TrendingUp, TrendingDown, Package,
+  TrendingUp, TrendingDown, Package, Banknote, Users,
 } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatNumber } from "@/components/admin/AnalyticsAPI";
@@ -23,6 +23,18 @@ interface EconomyStats {
   payCount: number;
   txLast24h: number;
   txLast7d: number;
+}
+
+interface CirculationData {
+  latest: {
+    total_money: number;
+    player_count: number;
+    avg_money: number;
+    median_money: number;
+    top_balances: string | null;
+    timestamp: number;
+  } | null;
+  history: { total_money: number; player_count: number; avg_money: number; timestamp: number }[];
 }
 
 interface TopItem {
@@ -54,6 +66,7 @@ export default function EconomyPage() {
   const [topItems, setTopItems] = useState<TopItem[]>([]);
   const [daily, setDaily] = useState<DailyEcon[]>([]);
   const [topSpenders, setTopSpenders] = useState<TopSpender[]>([]);
+  const [circulation, setCirculation] = useState<CirculationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const fetched = useRef(false);
@@ -67,11 +80,13 @@ export default function EconomyPage() {
       api("stats/economy/top-items"),
       api("stats/economy/daily", { days: "30" }),
       api("stats/economy/top-spenders", { limit: "10" }),
-    ]).then(([s, ti, d, ts]) => {
+      api("stats/economy/circulation"),
+    ]).then(([s, ti, d, ts, circ]) => {
       setStats(s);
       setTopItems(ti);
       setDaily(d);
       setTopSpenders(ts);
+      setCirculation(circ);
       setLoading(false);
     }).catch(() => {
       setError(locale === "fr" ? "Impossible de charger les stats economie." : "Failed to load economy stats.");
@@ -143,6 +158,57 @@ export default function EconomyPage() {
       <h1 className="text-xl font-bold text-text mb-6">
         {locale === "fr" ? "Economie" : "Economy"}
       </h1>
+
+      {/* Money in Circulation */}
+      {circulation?.latest && (
+        <div className="mc-card p-5 mb-6 border-l-4 border-l-pink">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-pink/10 flex items-center justify-center">
+                <Banknote size={22} className="text-pink" />
+              </div>
+              <div>
+                <p className="text-[11px] text-text-muted uppercase">{locale === "fr" ? "Argent total en circulation" : "Total Money in Circulation"}</p>
+                <p className="text-[28px] font-bold text-text">{formatNumber(circulation.latest.total_money)}$</p>
+              </div>
+            </div>
+            <div className="flex gap-6 ml-auto">
+              <div className="text-center">
+                <p className="text-[11px] text-text-muted">{locale === "fr" ? "Joueurs" : "Players"}</p>
+                <p className="text-[18px] font-bold text-text">{circulation.latest.player_count}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[11px] text-text-muted">{locale === "fr" ? "Moyenne" : "Average"}</p>
+                <p className="text-[18px] font-bold text-text">{formatNumber(circulation.latest.avg_money)}$</p>
+              </div>
+              {circulation.latest.median_money > 0 && (
+                <div className="text-center">
+                  <p className="text-[11px] text-text-muted">{locale === "fr" ? "Mediane" : "Median"}</p>
+                  <p className="text-[18px] font-bold text-text">{formatNumber(circulation.latest.median_money)}$</p>
+                </div>
+              )}
+            </div>
+          </div>
+          {circulation.latest.top_balances && (() => {
+            try {
+              const topBal = JSON.parse(circulation.latest.top_balances as string) as { name: string; balance: number }[];
+              if (!Array.isArray(topBal) || topBal.length === 0) return null;
+              return (
+                <div className="mt-4 pt-3 border-t border-border">
+                  <p className="text-[11px] text-text-muted mb-2">{locale === "fr" ? "Top balances" : "Top Balances"}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {topBal.slice(0, 10).map((b, i) => (
+                      <span key={i} className="px-2 py-1 rounded-lg bg-bg-soft text-[11px] font-medium text-text-sub">
+                        {b.name}: {formatNumber(b.balance)}$
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            } catch { return null; }
+          })()}
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">

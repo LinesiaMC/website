@@ -19,6 +19,12 @@ interface RetentionDay {
   retentionWeek: number;
 }
 
+function daysAgo(dateStr: string): number {
+  const now = new Date();
+  const d = new Date(dateStr);
+  return Math.floor((now.getTime() - d.getTime()) / 86400000);
+}
+
 export default function RetentionPage() {
   const { locale } = useParams<{ locale: string }>();
   const { headers } = useAdmin();
@@ -46,11 +52,14 @@ export default function RetentionPage() {
   }
 
   const totalNew = retention.reduce((s, r) => s + r.newPlayers, 0);
-  const avgDay1 = retention.filter(r => r.newPlayers > 0).length > 0
-    ? Math.round(retention.filter(r => r.newPlayers > 0).reduce((s, r) => s + r.retentionDay1, 0) / retention.filter(r => r.newPlayers > 0).length)
+  // Only count days where enough time has passed for the metric to be meaningful
+  const day1Eligible = retention.filter(r => r.newPlayers > 0 && daysAgo(r.date) >= 2);
+  const weekEligible = retention.filter(r => r.newPlayers > 0 && daysAgo(r.date) >= 8);
+  const avgDay1 = day1Eligible.length > 0
+    ? Math.round(day1Eligible.reduce((s, r) => s + r.retentionDay1, 0) / day1Eligible.length)
     : 0;
-  const avgWeek = retention.filter(r => r.newPlayers > 0).length > 0
-    ? Math.round(retention.filter(r => r.newPlayers > 0).reduce((s, r) => s + r.retentionWeek, 0) / retention.filter(r => r.newPlayers > 0).length)
+  const avgWeek = weekEligible.length > 0
+    ? Math.round(weekEligible.reduce((s, r) => s + r.retentionWeek, 0) / weekEligible.length)
     : 0;
 
   return (
@@ -109,21 +118,23 @@ export default function RetentionPage() {
                   datasets: [
                     {
                       label: locale === "fr" ? "Retention J+1" : "Day 1 Retention",
-                      data: retention.map(r => r.retentionDay1),
+                      data: retention.map(r => daysAgo(r.date) >= 2 ? r.retentionDay1 : null),
                       borderColor: "#E91E8C",
                       backgroundColor: "rgba(233,30,140,0.1)",
                       fill: true,
                       tension: 0.4,
                       pointRadius: 2,
+                      spanGaps: false,
                     },
                     {
                       label: locale === "fr" ? "Retention S+1" : "Week 1 Retention",
-                      data: retention.map(r => r.retentionWeek),
+                      data: retention.map(r => daysAgo(r.date) >= 8 ? r.retentionWeek : null),
                       borderColor: "#7C3AED",
                       backgroundColor: "rgba(124,58,237,0.1)",
                       fill: true,
                       tension: 0.4,
                       pointRadius: 2,
+                      spanGaps: false,
                     },
                   ],
                 }}
@@ -154,24 +165,37 @@ export default function RetentionPage() {
                 </tr>
               </thead>
               <tbody>
-                {[...retention].reverse().map((r) => (
-                  <tr key={r.date} className="border-b border-border/50">
-                    <td className="px-4 py-2.5 font-medium text-text">{r.date}</td>
-                    <td className="px-4 py-2.5 text-text-sub">{r.newPlayers}</td>
-                    <td className="px-4 py-2.5 text-text-sub">{r.returnedDay1}</td>
-                    <td className="px-4 py-2.5">
-                      <span className={`font-semibold ${r.retentionDay1 >= 30 ? "text-green" : r.retentionDay1 >= 15 ? "text-orange-500" : "text-red-500"}`}>
-                        {r.retentionDay1}%
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-text-sub">{r.returnedWeek}</td>
-                    <td className="px-4 py-2.5">
-                      <span className={`font-semibold ${r.retentionWeek >= 30 ? "text-green" : r.retentionWeek >= 15 ? "text-orange-500" : "text-red-500"}`}>
-                        {r.retentionWeek}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {[...retention].reverse().map((r) => {
+                  const age = daysAgo(r.date);
+                  const day1Ready = age >= 2;
+                  const weekReady = age >= 8;
+                  return (
+                    <tr key={r.date} className="border-b border-border/50">
+                      <td className="px-4 py-2.5 font-medium text-text">{r.date}</td>
+                      <td className="px-4 py-2.5 text-text-sub">{r.newPlayers}</td>
+                      <td className="px-4 py-2.5 text-text-sub">{day1Ready ? r.returnedDay1 : <span className="text-text-muted">-</span>}</td>
+                      <td className="px-4 py-2.5">
+                        {day1Ready ? (
+                          <span className={`font-semibold ${r.retentionDay1 >= 30 ? "text-green" : r.retentionDay1 >= 15 ? "text-orange-500" : "text-red-500"}`}>
+                            {r.retentionDay1}%
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-text-muted italic">{locale === "fr" ? "en attente" : "pending"}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-text-sub">{weekReady ? r.returnedWeek : <span className="text-text-muted">-</span>}</td>
+                      <td className="px-4 py-2.5">
+                        {weekReady ? (
+                          <span className={`font-semibold ${r.retentionWeek >= 30 ? "text-green" : r.retentionWeek >= 15 ? "text-orange-500" : "text-red-500"}`}>
+                            {r.retentionWeek}%
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-text-muted italic">{locale === "fr" ? "en attente" : "pending"}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

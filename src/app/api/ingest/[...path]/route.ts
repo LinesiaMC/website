@@ -81,10 +81,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
       }
 
       case "death": {
-        const { uuid, cause, world, x, y, z, timestamp, server_id, server_name } = body;
+        const { uuid, cause, world, x, y, z, timestamp, server_id, server_name, killer_name, killer_uuid, victim_inventory, killer_inventory } = body;
         await upsertServer(db, server_id, server_name);
+        // Build a structured detail for the logs table
+        const deathDetail: Record<string, unknown> = { cause: cause || "Unknown" };
+        if (killer_name) { deathDetail.killer = killer_name; deathDetail.killer_uuid = killer_uuid || null; }
+        if (victim_inventory) deathDetail.victim_inventory = victim_inventory;
+        if (killer_inventory) deathDetail.killer_inventory = killer_inventory;
         await run(db, `INSERT INTO deaths (player_uuid, cause, world, x, y, z, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?)`,
           [uuid, cause || "Unknown", world || "", x || 0, y || 0, z || 0, timestamp || Date.now(), server_id || null]);
+        return NextResponse.json({ success: true });
+      }
+
+      case "economy-snapshot": {
+        const { total_money, player_count, avg_money, median_money, top_balances, timestamp, server_id, server_name } = body;
+        await upsertServer(db, server_id, server_name);
+        await run(db, `INSERT INTO economy_snapshots (total_money, player_count, avg_money, median_money, top_balances, timestamp, server_id) VALUES (?,?,?,?,?,?,?)`,
+          [total_money || 0, player_count || 0, avg_money || 0, median_money || 0, top_balances ? JSON.stringify(top_balances) : null, timestamp || Date.now(), server_id || null]);
         return NextResponse.json({ success: true });
       }
 

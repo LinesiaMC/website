@@ -131,6 +131,17 @@ export async function getDb(): Promise<Client> {
       `CREATE INDEX IF NOT EXISTS idx_logs_target ON logs(target_player)`,
       `CREATE INDEX IF NOT EXISTS idx_logs_server ON logs(server_id)`,
       `CREATE INDEX IF NOT EXISTS idx_logs_item_uid ON logs(item_uid)`,
+      `CREATE TABLE IF NOT EXISTS economy_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        total_money REAL NOT NULL DEFAULT 0,
+        player_count INTEGER NOT NULL DEFAULT 0,
+        avg_money REAL NOT NULL DEFAULT 0,
+        median_money REAL DEFAULT 0,
+        top_balances TEXT,
+        timestamp INTEGER NOT NULL,
+        server_id TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_economy_snapshots_ts ON economy_snapshots(timestamp)`,
       `CREATE INDEX IF NOT EXISTS idx_sessions_server ON sessions(server_id)`,
       `CREATE INDEX IF NOT EXISTS idx_casino_player ON casino_transactions(player_uuid)`,
       `CREATE INDEX IF NOT EXISTS idx_casino_game ON casino_transactions(game)`,
