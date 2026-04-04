@@ -194,8 +194,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
           return NextResponse.json({ error: "player_uuid and type are required" }, { status: 400 });
         }
         await upsertServer(db, server_id, server_name);
-        await run(db, `INSERT INTO sanctions (player_uuid, player_name, xuid, type, reason, staff, duration, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?,?)`,
-          [player_uuid, player_name || null, xuid || null, type, reason || null, staff || null, duration || null, timestamp || Date.now(), server_id || null]);
+        const ts = timestamp || Date.now();
+        // Skip if already exists (avoid duplicates on repeated syncs)
+        const existing = await getOne(db, `SELECT id FROM sanctions WHERE player_uuid = ? AND type = ? AND timestamp = ?`, [player_uuid, type, ts]);
+        if (!existing) {
+          await run(db, `INSERT INTO sanctions (player_uuid, player_name, xuid, type, reason, staff, duration, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?,?)`,
+            [player_uuid, player_name || null, xuid || null, type, reason || null, staff || null, duration || null, ts, server_id || null]);
+        }
         return NextResponse.json({ success: true });
       }
 
