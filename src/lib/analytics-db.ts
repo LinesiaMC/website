@@ -177,19 +177,19 @@ export async function getDb(): Promise<Client> {
       `CREATE INDEX IF NOT EXISTS idx_sanctions_player ON sanctions(player_uuid)`,
       `CREATE INDEX IF NOT EXISTS idx_sanctions_xuid ON sanctions(xuid)`,
       `CREATE INDEX IF NOT EXISTS idx_sanctions_timestamp ON sanctions(timestamp)`,
-      `CREATE TABLE IF NOT EXISTS player_identifiers (
+      `CREATE TABLE IF NOT EXISTS player_aliases (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         player_uuid TEXT NOT NULL,
         player_name TEXT NOT NULL,
-        xuid TEXT NOT NULL,
-        device_id TEXT,
-        ip_hash TEXT,
-        last_seen INTEGER NOT NULL,
-        UNIQUE(player_uuid)
+        alias_uuid TEXT NOT NULL,
+        alias_name TEXT NOT NULL,
+        alias_xuid TEXT,
+        match_via TEXT,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(player_uuid, alias_uuid)
       )`,
-      `CREATE INDEX IF NOT EXISTS idx_player_identifiers_xuid ON player_identifiers(xuid)`,
-      `CREATE INDEX IF NOT EXISTS idx_player_identifiers_device ON player_identifiers(device_id)`,
-      `CREATE INDEX IF NOT EXISTS idx_player_identifiers_ip ON player_identifiers(ip_hash)`,
+      `CREATE INDEX IF NOT EXISTS idx_player_aliases_player ON player_aliases(player_uuid)`,
+      `CREATE INDEX IF NOT EXISTS idx_player_aliases_alias ON player_aliases(alias_uuid)`,
     ]);
   }
 

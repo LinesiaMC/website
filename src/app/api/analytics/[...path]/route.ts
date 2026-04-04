@@ -518,35 +518,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
           if (!player) return NextResponse.json({ error: "Player not found" }, { status: 404 });
           const sf = serverFilter(sid);
           const sWhere = sf.where ? `AND ${sf.where}` : "";
-          // Find alt accounts via shared device_id or ip_hash
-          const playerIdent = await getOne(db, `SELECT * FROM player_identifiers WHERE player_uuid = ?`, [uuid]);
-          let aliases: Record<string, unknown>[] = [];
-          if (playerIdent) {
-            const conditions: string[] = [];
-            const params: unknown[] = [];
-            if (playerIdent.device_id) {
-              conditions.push("device_id = ?");
-              params.push(playerIdent.device_id);
-            }
-            if (playerIdent.ip_hash) {
-              conditions.push("ip_hash = ?");
-              params.push(playerIdent.ip_hash);
-            }
-            if (conditions.length > 0) {
-              aliases = await getAll(db,
-                `SELECT player_uuid, player_name, xuid, device_id, ip_hash, last_seen FROM player_identifiers WHERE (${conditions.join(" OR ")}) AND player_uuid != ? ORDER BY last_seen DESC`,
-                [...params, uuid]
-              );
-              // Tag match reason
-              aliases = aliases.map(a => ({
-                ...a,
-                match_via: [
-                  ...(playerIdent.device_id && a.device_id === playerIdent.device_id ? ["device_id"] : []),
-                  ...(playerIdent.ip_hash && a.ip_hash === playerIdent.ip_hash ? ["ip"] : []),
-                ].join(", ")
-              }));
-            }
-          }
+          // Get alt accounts (sent by LinesiaCore, same logic as /alias command)
+          const aliases = await getAll(db,
+            `SELECT alias_uuid, alias_name, alias_xuid, match_via, updated_at FROM player_aliases WHERE player_uuid = ? ORDER BY updated_at DESC`,
+            [uuid]
+          );
 
           return NextResponse.json({
             player,

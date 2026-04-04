@@ -199,17 +199,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
         return NextResponse.json({ success: true });
       }
 
-      case "player-identifiers": {
-        const { player_uuid, player_name, xuid, device_id, ip_hash, server_id, server_name } = body;
-        if (!player_uuid || !xuid) {
-          return NextResponse.json({ error: "player_uuid and xuid are required" }, { status: 400 });
+      case "player-aliases": {
+        const { player_uuid, player_name, aliases, server_id, server_name } = body;
+        if (!player_uuid || !Array.isArray(aliases)) {
+          return NextResponse.json({ error: "player_uuid and aliases array are required" }, { status: 400 });
         }
         await upsertServer(db, server_id, server_name);
-        await run(db, `INSERT INTO player_identifiers (player_uuid, player_name, xuid, device_id, ip_hash, last_seen)
-          VALUES (?, ?, ?, ?, ?, ?)
-          ON CONFLICT(player_uuid) DO UPDATE SET player_name=excluded.player_name, xuid=excluded.xuid, device_id=excluded.device_id, ip_hash=excluded.ip_hash, last_seen=excluded.last_seen`,
-          [player_uuid, player_name || "Unknown", xuid, device_id || null, ip_hash || null, Date.now()]);
-        return NextResponse.json({ success: true });
+        const now = Date.now();
+        // Clear old aliases for this player and re-insert
+        await run(db, `DELETE FROM player_aliases WHERE player_uuid = ?`, [player_uuid]);
+        for (const alt of aliases) {
+          const aliasUuid = alt.uuid || "";
+          if (!aliasUuid) continue;
+          await run(db, `INSERT INTO player_aliases (player_uuid, player_name, alias_uuid, alias_name, alias_xuid, match_via, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(player_uuid, alias_uuid) DO UPDATE SET alias_name=excluded.alias_name, match_via=excluded.match_via, updated_at=excluded.updated_at`,
+            [player_uuid, player_name || "Unknown", aliasUuid, alt.pseudo || "Unknown", alt.xuid || null, alt.match_via || "", now]);
+        }
+        return NextResponse.json({ success: true, count: aliases.length });
       }
 
       case "logs": {

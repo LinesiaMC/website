@@ -25,7 +25,7 @@ interface PlayerDetail {
   commandStats: { command: string; count: number }[];
   worldStats: { world_name: string; total_time: number; visits: number }[];
   sanctions: { id: number; type: string; reason: string; staff: string; duration: string; timestamp: number }[];
-  aliases: { player_uuid: string; player_name: string; xuid: string; device_id: string; ip_hash: string; last_seen: number; match_via: string }[];
+  aliases: { alias_uuid: string; alias_name: string; alias_xuid: string; match_via: string; updated_at: number }[];
 }
 
 export default function PlayerDetailPage() {
@@ -246,22 +246,28 @@ export default function PlayerDetailPage() {
               </thead>
               <tbody>
                 {data.aliases.map((a) => (
-                  <tr key={a.player_uuid} className="border-b border-border/50">
+                  <tr key={a.alias_uuid} className="border-b border-border/50">
                     <td className="px-4 py-2.5">
-                      <span className="font-semibold text-text">{a.player_name}</span>
-                      <p className="text-[11px] text-text-muted font-mono">{a.player_uuid}</p>
+                      <span className="font-semibold text-text">{a.alias_name}</span>
+                      <p className="text-[11px] text-text-muted font-mono">{a.alias_uuid}</p>
                     </td>
                     <td className="px-4 py-2.5">
-                      {a.match_via.split(", ").map((m) => (
-                        <span key={m} className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold bg-orange-500/10 text-orange-500 mr-1">
-                          {m === "device_id" ? (locale === "fr" ? "Meme appareil" : "Same device") : m === "ip" ? (locale === "fr" ? "Meme IP" : "Same IP") : m}
-                        </span>
-                      ))}
+                      {a.match_via.split(",").map((m) => {
+                        const key = m.trim();
+                        const labels: Record<string, string> = locale === "fr"
+                          ? { device_id: "Meme appareil", common_ip: "IP commune", last_ip: "Meme IP" }
+                          : { device_id: "Same device", common_ip: "Common IP", last_ip: "Same IP" };
+                        return (
+                          <span key={key} className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold bg-orange-500/10 text-orange-500 mr-1">
+                            {labels[key] || key}
+                          </span>
+                        );
+                      })}
                     </td>
-                    <td className="px-4 py-2.5 text-text-sub">{formatDate(a.last_seen)}</td>
+                    <td className="px-4 py-2.5 text-text-sub">{formatDate(a.updated_at)}</td>
                     <td className="px-4 py-2.5">
                       <a
-                        href={`/${locale}/admin/analytics/players/${a.player_uuid}`}
+                        href={`/${locale}/admin/analytics/players/${a.alias_uuid}`}
                         className="text-pink hover:underline text-[12px] font-medium"
                       >
                         {locale === "fr" ? "Voir" : "View"}
