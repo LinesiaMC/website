@@ -518,10 +518,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
           if (!player) return NextResponse.json({ error: "Player not found" }, { status: 404 });
           const sf = serverFilter(sid);
           const sWhere = sf.where ? `AND ${sf.where}` : "";
-          // Get alt accounts (sent by LinesiaCore, same logic as /alias command)
+          // Get alt accounts (both directions, deduplicated by alias_uuid)
           const aliases = await getAll(db,
-            `SELECT alias_uuid, alias_name, alias_xuid, match_via, updated_at FROM player_aliases WHERE player_uuid = ? ORDER BY updated_at DESC`,
-            [uuid]
+            `SELECT alias_uuid, alias_name, alias_xuid, GROUP_CONCAT(DISTINCT match_via) AS match_via, MAX(updated_at) AS updated_at
+             FROM (
+               SELECT alias_uuid, alias_name, alias_xuid, match_via, updated_at FROM player_aliases WHERE player_uuid = ?
+               UNION ALL
+               SELECT player_uuid AS alias_uuid, player_name AS alias_name, NULL AS alias_xuid, match_via, updated_at FROM player_aliases WHERE alias_uuid = ?
+             )
+             GROUP BY alias_uuid
+             ORDER BY updated_at DESC`,
+            [uuid, uuid]
           );
 
           return NextResponse.json({
