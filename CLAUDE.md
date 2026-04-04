@@ -48,9 +48,14 @@ vercel.json              # Vercel deployment config
 ```
 
 ## Design
-- **White theme** inspired by playhyping.com / evolucraft.fr
-- **Colors**: White bg (#FFF), Soft gray (#F1F4F8), Pink (#E91E8C) accent, Violet (#7C3AED) secondary
-- **Cards**: `.mc-card` = white bg, border, pink top bar on hover, subtle shadow
+- **White theme** with violet accents, inspired by playhyping.com / evolucraft.fr
+- **Color palette** (violet-based):
+  - `#2B0036` violet tres sombre, `#4A0A63` violet profond, `#6A1B9A` violet soutenu (hover)
+  - `#8E2DE2` **violet vif (primary accent)**, `#B84DFF` violet clair (secondary)
+  - `#D47CFF` violet pastel, `#F2A6FF` rose-violet clair
+  - Soft bg: `#F3EAFF`, White bg: `#FFF`, Soft gray: `#F1F4F8`
+- **Cards**: `.mc-card` = white bg, border, violet gradient top bar on hover, subtle shadow
+- **Logo**: `public/images/1024.jpg` (purple 3D "L"), **Banner**: `public/images/1024_title.png`
 - **Font**: Poppins (Google Fonts)
 - **Animations**: Scroll-reveal (IntersectionObserver), staggered delays
 

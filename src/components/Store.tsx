@@ -9,9 +9,9 @@ import { Link } from "@/i18n/routing";
 function GemIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className="gem-shine">
-      <path d="M6 3h12l4 8-10 12L2 11l4-8z" fill="#E91E8C" />
-      <path d="M12 3l-2 8 2 12 2-12-2-8z" fill="#7C3AED" opacity="0.6" />
-      <path d="M2 11h20L12 23 2 11z" fill="#E91E8C" opacity="0.3" />
+      <path d="M6 3h12l4 8-10 12L2 11l4-8z" fill="#8E2DE2" />
+      <path d="M12 3l-2 8 2 12 2-12-2-8z" fill="#B84DFF" opacity="0.6" />
+      <path d="M2 11h20L12 23 2 11z" fill="#8E2DE2" opacity="0.3" />
       <path d="M6 3l4 8H2l4-8zM18 3l-4 8h8l-4-8z" fill="white" opacity="0.25" />
     </svg>
   );

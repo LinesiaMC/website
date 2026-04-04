@@ -119,7 +119,7 @@ export default function RetentionPage() {
                     {
                       label: locale === "fr" ? "Retention J+1" : "Day 1 Retention",
                       data: retention.map(r => daysAgo(r.date) >= 2 ? r.retentionDay1 : null),
-                      borderColor: "#E91E8C",
+                      borderColor: "#8E2DE2",
                       backgroundColor: "rgba(233,30,140,0.1)",
                       fill: true,
                       tension: 0.4,
@@ -129,7 +129,7 @@ export default function RetentionPage() {
                     {
                       label: locale === "fr" ? "Retention S+1" : "Week 1 Retention",
                       data: retention.map(r => daysAgo(r.date) >= 8 ? r.retentionWeek : null),
-                      borderColor: "#7C3AED",
+                      borderColor: "#B84DFF",
                       backgroundColor: "rgba(124,58,237,0.1)",
                       fill: true,
                       tension: 0.4,

@@ -144,8 +144,8 @@ export default function AnalyticsDashboard() {
   ];
 
   const chartColors = {
-    pink: "#E91E8C",
-    violet: "#7C3AED",
+    pink: "#8E2DE2",
+    violet: "#B84DFF",
     pinkSoft: "rgba(233, 30, 140, 0.1)",
     violetSoft: "rgba(124, 58, 237, 0.1)",
   };
@@ -226,7 +226,7 @@ export default function AnalyticsDashboard() {
                   labels: platforms.map(p => p.platform),
                   datasets: [{
                     data: platforms.map(p => p.count),
-                    backgroundColor: ["#E91E8C", "#7C3AED", "#3B82F6", "#22C55E", "#F59E0B", "#EF4444"],
+                    backgroundColor: ["#8E2DE2", "#B84DFF", "#3B82F6", "#22C55E", "#F59E0B", "#EF4444"],
                     borderWidth: 0,
                   }],
                 }}

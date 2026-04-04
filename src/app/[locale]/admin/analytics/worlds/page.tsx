@@ -75,13 +75,13 @@ export default function WorldsPage() {
                     {
                       label: locale === "fr" ? "Joueurs uniques" : "Unique Players",
                       data: worlds.map(w => w.unique_players),
-                      backgroundColor: "#E91E8C",
+                      backgroundColor: "#8E2DE2",
                       borderRadius: 4,
                     },
                     {
                       label: locale === "fr" ? "Visites totales" : "Total Visits",
                       data: worlds.map(w => w.total_visits),
-                      backgroundColor: "#7C3AED",
+                      backgroundColor: "#B84DFF",
                       borderRadius: 4,
                     },
                   ],

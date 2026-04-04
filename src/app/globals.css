@@ -10,11 +10,16 @@
   --color-border: #E0E0E0;
   --color-border-card: #C9C9C9;
 
-  --color-pink: #E91E8C;
-  --color-pink-hover: #D1187D;
-  --color-pink-soft: #FDF2F8;
-  --color-violet: #7C3AED;
-  --color-violet-hover: #6D28D9;
+  --color-pink: #8E2DE2;
+  --color-pink-hover: #6A1B9A;
+  --color-pink-soft: #F3EAFF;
+  --color-violet: #B84DFF;
+  --color-violet-hover: #8E2DE2;
+
+  --color-violet-deep: #4A0A63;
+  --color-violet-dark: #2B0036;
+  --color-violet-pastel: #D47CFF;
+  --color-violet-light: #F2A6FF;
 
   --color-discord: #5865F2;
   --color-green: #22C55E;
@@ -46,8 +51,8 @@ body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  background: #FDF2F8;
-  color: #E91E8C;
+  background: #F3EAFF;
+  color: #8E2DE2;
   margin-bottom: 16px;
 }
 
@@ -70,7 +75,7 @@ body {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, #E91E8C, #7C3AED);
+  background: linear-gradient(90deg, #8E2DE2, #B84DFF);
   transform: scaleX(0);
   transition: transform 0.2s ease;
 }
@@ -86,7 +91,7 @@ body {
    BUTTONS
    ============================================ */
 .btn-primary {
-  background: #E91E8C;
+  background: #8E2DE2;
   color: white;
   font-weight: 600;
   border-radius: 10px;
@@ -99,8 +104,8 @@ body {
   gap: 8px;
 }
 .btn-primary:hover {
-  background: #D1187D;
-  box-shadow: 0 4px 16px rgba(233,30,140,0.3);
+  background: #6A1B9A;
+  box-shadow: 0 4px 16px rgba(142,45,226,0.3);
   transform: translateY(-1px);
 }
 
@@ -190,8 +195,8 @@ body {
   background: #F8F8FA;
 }
 .tab-item.active {
-  color: #E91E8C;
-  background: #FDF2F8;
+  color: #8E2DE2;
+  background: #F3EAFF;
   font-weight: 600;
 }
 
@@ -206,7 +211,7 @@ body {
 }
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #E91E8C, #7C3AED);
+  background: linear-gradient(90deg, #8E2DE2, #B84DFF);
   border-radius: 999px;
   position: relative;
 }
@@ -239,7 +244,7 @@ body {
    UTILS
    ============================================ */
 .gradient-text {
-  background: linear-gradient(135deg, #E91E8C, #7C3AED);
+  background: linear-gradient(135deg, #8E2DE2, #B84DFF);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

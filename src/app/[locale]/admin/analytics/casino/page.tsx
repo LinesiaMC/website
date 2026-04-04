@@ -124,8 +124,8 @@ export default function CasinoAnalytics() {
   ];
 
   const chartColors = {
-    pink: "#E91E8C",
-    violet: "#7C3AED",
+    pink: "#8E2DE2",
+    violet: "#B84DFF",
     green: "#22C55E",
     red: "#EF4444",
     pinkSoft: "rgba(233, 30, 140, 0.1)",

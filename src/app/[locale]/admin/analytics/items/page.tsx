@@ -72,9 +72,9 @@ export default function ItemsPage() {
   const handleSearch = () => fetchItems();
 
   const chartColors = {
-    pink: "#E91E8C",
+    pink: "#8E2DE2",
     green: "#22C55E",
-    violet: "#7C3AED",
+    violet: "#B84DFF",
     pinkSoft: "rgba(233, 30, 140, 0.1)",
     greenSoft: "rgba(34, 197, 94, 0.1)",
     violetSoft: "rgba(124, 58, 237, 0.1)",

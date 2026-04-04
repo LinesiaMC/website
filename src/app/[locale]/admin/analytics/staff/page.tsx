@@ -160,8 +160,8 @@ export default function StaffPage() {
   ];
 
   const chartColors = {
-    pink: "#E91E8C",
-    violet: "#7C3AED",
+    pink: "#8E2DE2",
+    violet: "#B84DFF",
     pinkSoft: "rgba(233, 30, 140, 0.1)",
   };
 

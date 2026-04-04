@@ -75,8 +75,8 @@ export default function BoxesPage() {
   if (!stats) return null;
 
   const chartColors = {
-    pink: "#E91E8C",
-    violet: "#7C3AED",
+    pink: "#8E2DE2",
+    violet: "#B84DFF",
     green: "#22C55E",
     orange: "#F97316",
     blue: "#3B82F6",
@@ -84,7 +84,7 @@ export default function BoxesPage() {
     violetSoft: "rgba(124, 58, 237, 0.1)",
   };
 
-  const doughnutColors = ["#E91E8C", "#7C3AED", "#22C55E", "#F97316", "#3B82F6", "#EF4444", "#06B6D4", "#8B5CF6", "#EC4899", "#14B8A6"];
+  const doughnutColors = ["#8E2DE2", "#B84DFF", "#22C55E", "#F97316", "#3B82F6", "#EF4444", "#06B6D4", "#8B5CF6", "#EC4899", "#14B8A6"];
 
   return (
     <div className="max-w-[1200px] mx-auto px-6 py-8">

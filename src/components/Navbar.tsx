@@ -30,9 +30,7 @@ export default function Navbar() {
       <div className="bg-white rounded-2xl shadow-lg border border-border px-5 h-[60px] flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-pink flex items-center justify-center">
-            <span className="text-white font-bold text-sm">L</span>
-          </div>
+          <img src="/images/1024.jpg" alt="Linesia" className="w-8 h-8 rounded-lg" />
           <span className="font-semibold text-[15px] text-text hidden sm:block">Linesia</span>
         </Link>
 
