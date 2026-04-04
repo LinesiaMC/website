@@ -507,6 +507,65 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         }
         return NextResponse.json({ error: "Not found" }, { status: 404 });
       }
+
+      // ==================== STAFF ====================
+      case "staff/overview": {
+        const now = Date.now(), day = 86400000, week = 7 * day;
+        return NextResponse.json({
+          totalActions: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions")) as Record<string, number>).count,
+          actionsToday: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE timestamp > ?", [now - day])) as Record<string, number>).count,
+          actionsWeek: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE timestamp > ?", [now - week])) as Record<string, number>).count,
+          uniqueStaff: ((await getOne(db, "SELECT COUNT(DISTINCT staff_id) as count FROM staff_actions")) as Record<string, number>).count,
+          totalMutes: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'mute'")) as Record<string, number>).count,
+          totalBans: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'ban'")) as Record<string, number>).count,
+          totalKicks: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'kick'")) as Record<string, number>).count,
+          totalUnmutes: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'unmute'")) as Record<string, number>).count,
+          totalJails: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'jail'")) as Record<string, number>).count,
+          totalTicketClose: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'ticket_close'")) as Record<string, number>).count,
+          totalTicketMessage: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'ticket_message'")) as Record<string, number>).count,
+          totalTicketSummary: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'ticket_summary'")) as Record<string, number>).count,
+        });
+      }
+
+      case "staff/leaderboard": {
+        const limit = Number(q.get("limit")) || 50;
+        return NextResponse.json(await getAll(db,
+          `SELECT staff_id, staff_name, COUNT(*) as total_actions,
+            SUM(CASE WHEN action = 'mute' THEN 1 ELSE 0 END) as mutes,
+            SUM(CASE WHEN action = 'ban' THEN 1 ELSE 0 END) as bans,
+            SUM(CASE WHEN action = 'kick' THEN 1 ELSE 0 END) as kicks,
+            SUM(CASE WHEN action = 'unmute' THEN 1 ELSE 0 END) as unmutes,
+            SUM(CASE WHEN action = 'jail' THEN 1 ELSE 0 END) as jails,
+            SUM(CASE WHEN action = 'ticket_close' THEN 1 ELSE 0 END) as ticket_closes,
+            SUM(CASE WHEN action = 'ticket_message' THEN 1 ELSE 0 END) as ticket_messages,
+            SUM(CASE WHEN action = 'ticket_summary' THEN 1 ELSE 0 END) as ticket_summaries
+          FROM staff_actions GROUP BY staff_id ORDER BY total_actions DESC LIMIT ?`, [limit]));
+      }
+
+      case "staff/daily-activity": {
+        const days = Number(q.get("days")) || 30;
+        const now = Date.now(), day = 86400000;
+        const result = [];
+        for (let i = days - 1; i >= 0; i--) {
+          const dayStart = now - (i + 1) * day, dayEnd = now - i * day;
+          result.push({
+            date: new Date(dayStart).toISOString().split("T")[0],
+            actions: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE timestamp BETWEEN ? AND ?", [dayStart, dayEnd])) as Record<string, number>).count,
+          });
+        }
+        return NextResponse.json(result);
+      }
+
+      case "staff/actions-breakdown": {
+        return NextResponse.json(await getAll(db,
+          `SELECT action, COUNT(*) as count FROM staff_actions GROUP BY action ORDER BY count DESC`));
+      }
+
+      case "staff/recent": {
+        const limit = Number(q.get("limit")) || 50;
+        return NextResponse.json(await getAll(db,
+          `SELECT * FROM staff_actions ORDER BY timestamp DESC LIMIT ?`, [limit]));
+      }
     }
   } catch (err) {
     console.error("Analytics error:", err);

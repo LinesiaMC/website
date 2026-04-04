@@ -167,6 +167,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
         return NextResponse.json({ success: true });
       }
 
+      case "staff-action": {
+        const { staff_id, staff_name, action, source, target, detail, timestamp } = body;
+        if (!staff_id || !staff_name || !action) {
+          return NextResponse.json({ error: "staff_id, staff_name, and action are required" }, { status: 400 });
+        }
+        await run(db, `INSERT INTO staff_actions (staff_id, staff_name, action, source, target, detail, timestamp) VALUES (?,?,?,?,?,?,?)`,
+          [staff_id, staff_name, action, source || "discord", target || null, detail || null, timestamp || Date.now()]);
+        return NextResponse.json({ success: true });
+      }
+
+      case "staff-actions": {
+        const { actions: staffEntries } = body;
+        if (!Array.isArray(staffEntries)) return NextResponse.json({ error: "actions must be an array" }, { status: 400 });
+        for (const e of staffEntries) {
+          if (!e.staff_id || !e.staff_name || !e.action) continue;
+          await run(db, `INSERT INTO staff_actions (staff_id, staff_name, action, source, target, detail, timestamp) VALUES (?,?,?,?,?,?,?)`,
+            [e.staff_id, e.staff_name, e.action, e.source || "minecraft", e.target || null, e.detail || null, e.timestamp || Date.now()]);
+        }
+        return NextResponse.json({ success: true, count: staffEntries.length });
+      }
+
       case "logs": {
         const { logs: entries, server_id, server_name } = body;
         if (!Array.isArray(entries)) return NextResponse.json({ error: "logs must be an array" }, { status: 400 });

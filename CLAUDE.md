@@ -21,6 +21,8 @@ src/
       retention/page.tsx # Retention cohort analysis
       worlds/page.tsx    # World analytics
       logs/page.tsx      # Logs search & filtering
+      messages/page.tsx  # Chat logs (public, private, faction, staff)
+      items/trace/page.tsx # Item tracing by unique ID (UID)
     layout.tsx           # Root layout with i18n + hreflang SEO
   app/api/
     articles/            # REST API for articles CRUD
@@ -62,7 +64,7 @@ vercel.json              # Vercel deployment config
 7. Footer
 
 ## Admin Panel
-- Sidebar navigation: Articles, Dashboard, Players, Retention, Worlds, Logs
+- Sidebar navigation: Articles, Dashboard, Players, Retention, Worlds, Economy, Items, Trace Item, Messages, Casino, Boxes, Logs
 - Password-protected (same auth for all pages)
 - Analytics pages fetch data from web-panel via `/api/analytics/` proxy
 

@@ -148,6 +148,20 @@ export async function getDb(): Promise<Client> {
       `CREATE INDEX IF NOT EXISTS idx_casino_timestamp ON casino_transactions(timestamp)`,
       `CREATE INDEX IF NOT EXISTS idx_casino_server ON casino_transactions(server_id)`,
       `CREATE INDEX IF NOT EXISTS idx_commands_server ON commands(server_id)`,
+      `CREATE TABLE IF NOT EXISTS staff_actions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        staff_id TEXT NOT NULL,
+        staff_name TEXT NOT NULL,
+        action TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'discord',
+        target TEXT,
+        detail TEXT,
+        timestamp INTEGER NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_actions_staff ON staff_actions(staff_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_actions_action ON staff_actions(action)`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_actions_timestamp ON staff_actions(timestamp)`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_actions_source ON staff_actions(source)`,
     ]);
   }
 

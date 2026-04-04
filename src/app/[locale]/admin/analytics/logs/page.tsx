@@ -168,7 +168,11 @@ function LogDetailModal({ log, locale, onClose }: { log: LogEntry; locale: strin
                 <p className="text-[13px] text-text">
                   {log.item_name}{log.item_count && log.item_count > 1 ? ` x${log.item_count}` : ""}
                 </p>
-                {log.item_uid && <p className="text-[10px] text-text-muted font-mono">UID: {log.item_uid}</p>}
+                {log.item_uid && (
+                  <a href={`/${locale}/admin/analytics/items/trace?uid=${log.item_uid}`} className="text-[10px] text-pink font-mono hover:underline" onClick={(e) => e.stopPropagation()}>
+                    UID: {log.item_uid}
+                  </a>
+                )}
               </div>
             </div>
           )}
@@ -423,6 +427,15 @@ export default function LogsPage() {
                         <span>
                           {log.item_name}
                           {log.item_count && log.item_count > 1 ? <span className="text-text-muted"> x{log.item_count}</span> : ""}
+                          {log.item_uid && (
+                            <a
+                              href={`/${locale}/admin/analytics/items/trace?uid=${log.item_uid}`}
+                              className="ml-1 text-[10px] text-pink font-mono hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {log.item_uid}
+                            </a>
+                          )}
                         </span>
                       ) : "-"}
                     </td>
