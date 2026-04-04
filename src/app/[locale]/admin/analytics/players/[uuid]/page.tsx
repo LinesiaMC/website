@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Activity, Clock, Terminal, Globe, Skull, MessageSquare } from "lucide-react";
+import { ArrowLeft, Activity, Clock, Terminal, Globe, Skull, MessageSquare, ShieldAlert, Users } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDuration, formatDate } from "@/components/admin/AnalyticsAPI";
 import { useAutoRefresh } from "@/lib/useAutoRefresh";
@@ -24,6 +24,8 @@ interface PlayerDetail {
   messages: { message: string; world: string; timestamp: number }[];
   commandStats: { command: string; count: number }[];
   worldStats: { world_name: string; total_time: number; visits: number }[];
+  sanctions: { id: number; type: string; reason: string; staff: string; duration: string; timestamp: number }[];
+  aliases: { player_uuid: string; player_name: string; xuid: string; device_id: string; ip_hash: string; last_seen: number; match_via: string }[];
 }
 
 export default function PlayerDetailPage() {
@@ -88,9 +90,23 @@ export default function PlayerDetailPage() {
             <h1 className="text-xl font-bold text-text">{player.username}</h1>
             <p className="text-[12px] text-text-muted font-mono mt-1">{player.uuid}</p>
           </div>
-          <span className="px-3 py-1 rounded-lg bg-pink/10 text-pink text-[12px] font-semibold">
-            {player.platform}
-          </span>
+          <div className="flex items-center gap-2">
+            {data.sanctions.length > 0 && (
+              <span className="px-3 py-1 rounded-lg bg-red-500/10 text-red-500 text-[12px] font-semibold flex items-center gap-1.5">
+                <ShieldAlert size={13} />
+                {data.sanctions.length} {locale === "fr" ? "sanction(s)" : "sanction(s)"}
+              </span>
+            )}
+            {data.aliases.length > 0 && (
+              <span className="px-3 py-1 rounded-lg bg-orange-500/10 text-orange-500 text-[12px] font-semibold flex items-center gap-1.5">
+                <Users size={13} />
+                {data.aliases.length} {locale === "fr" ? "double(s) compte" : "alt(s)"}
+              </span>
+            )}
+            <span className="px-3 py-1 rounded-lg bg-pink/10 text-pink text-[12px] font-semibold">
+              {player.platform}
+            </span>
+          </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5">
           <div>
@@ -156,6 +172,108 @@ export default function PlayerDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Sanctions */}
+      {data.sanctions.length > 0 && (
+        <div className="mc-card p-5 mb-6">
+          <h3 className="text-[14px] font-semibold text-text mb-3 flex items-center gap-2">
+            <ShieldAlert size={16} className="text-red-500" />
+            {locale === "fr" ? "Historique des sanctions" : "Sanctions History"}
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-border bg-bg-soft">
+                  <th className="text-left px-4 py-2.5 font-semibold text-text-sub">Type</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-text-sub">{locale === "fr" ? "Raison" : "Reason"}</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-text-sub">Staff</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-text-sub">{locale === "fr" ? "Duree" : "Duration"}</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-text-sub">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.sanctions.map((s) => {
+                  const typeColors: Record<string, string> = {
+                    ban: "bg-red-500/10 text-red-500",
+                    unban: "bg-green-500/10 text-green-500",
+                    mute: "bg-orange-500/10 text-orange-500",
+                    unmute: "bg-emerald-500/10 text-emerald-500",
+                    kick: "bg-yellow-500/10 text-yellow-600",
+                  };
+                  const typeLabels: Record<string, string> = {
+                    ban: "Ban",
+                    unban: "Unban",
+                    mute: "Mute",
+                    unmute: "Unmute",
+                    kick: "Kick",
+                  };
+                  return (
+                    <tr key={s.id} className="border-b border-border/50">
+                      <td className="px-4 py-2.5">
+                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${typeColors[s.type] || "bg-gray-500/10 text-gray-500"}`}>
+                          {typeLabels[s.type] || s.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-text">{s.reason || "-"}</td>
+                      <td className="px-4 py-2.5 text-text-sub">{s.staff || "-"}</td>
+                      <td className="px-4 py-2.5 text-text-sub">{s.duration || "-"}</td>
+                      <td className="px-4 py-2.5 text-text-sub">{formatDate(s.timestamp)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Aliases / Double comptes */}
+      {data.aliases.length > 0 && (
+        <div className="mc-card p-5 mb-6">
+          <h3 className="text-[14px] font-semibold text-text mb-3 flex items-center gap-2">
+            <Users size={16} className="text-orange-500" />
+            {locale === "fr" ? "Doubles comptes (alias)" : "Alt Accounts (Aliases)"}
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-border bg-bg-soft">
+                  <th className="text-left px-4 py-2.5 font-semibold text-text-sub">{locale === "fr" ? "Joueur" : "Player"}</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-text-sub">{locale === "fr" ? "Correspondance" : "Match"}</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-text-sub">{locale === "fr" ? "Derniere connexion" : "Last Seen"}</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-text-sub"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.aliases.map((a) => (
+                  <tr key={a.player_uuid} className="border-b border-border/50">
+                    <td className="px-4 py-2.5">
+                      <span className="font-semibold text-text">{a.player_name}</span>
+                      <p className="text-[11px] text-text-muted font-mono">{a.player_uuid}</p>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {a.match_via.split(", ").map((m) => (
+                        <span key={m} className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold bg-orange-500/10 text-orange-500 mr-1">
+                          {m === "device_id" ? (locale === "fr" ? "Meme appareil" : "Same device") : m === "ip" ? (locale === "fr" ? "Meme IP" : "Same IP") : m}
+                        </span>
+                      ))}
+                    </td>
+                    <td className="px-4 py-2.5 text-text-sub">{formatDate(a.last_seen)}</td>
+                    <td className="px-4 py-2.5">
+                      <a
+                        href={`/${locale}/admin/analytics/players/${a.player_uuid}`}
+                        className="text-pink hover:underline text-[12px] font-medium"
+                      >
+                        {locale === "fr" ? "Voir" : "View"}
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex items-center gap-1 mb-4 overflow-x-auto">

@@ -188,6 +188,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
         return NextResponse.json({ success: true, count: staffEntries.length });
       }
 
+      case "sanction": {
+        const { player_uuid, player_name, xuid, type, reason, staff, duration, timestamp, server_id, server_name } = body;
+        if (!player_uuid || !type) {
+          return NextResponse.json({ error: "player_uuid and type are required" }, { status: 400 });
+        }
+        await upsertServer(db, server_id, server_name);
+        await run(db, `INSERT INTO sanctions (player_uuid, player_name, xuid, type, reason, staff, duration, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?,?)`,
+          [player_uuid, player_name || null, xuid || null, type, reason || null, staff || null, duration || null, timestamp || Date.now(), server_id || null]);
+        return NextResponse.json({ success: true });
+      }
+
+      case "player-identifiers": {
+        const { player_uuid, player_name, xuid, device_id, ip_hash, server_id, server_name } = body;
+        if (!player_uuid || !xuid) {
+          return NextResponse.json({ error: "player_uuid and xuid are required" }, { status: 400 });
+        }
+        await upsertServer(db, server_id, server_name);
+        await run(db, `INSERT INTO player_identifiers (player_uuid, player_name, xuid, device_id, ip_hash, last_seen)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(player_uuid) DO UPDATE SET player_name=excluded.player_name, xuid=excluded.xuid, device_id=excluded.device_id, ip_hash=excluded.ip_hash, last_seen=excluded.last_seen`,
+          [player_uuid, player_name || "Unknown", xuid, device_id || null, ip_hash || null, Date.now()]);
+        return NextResponse.json({ success: true });
+      }
+
       case "logs": {
         const { logs: entries, server_id, server_name } = body;
         if (!Array.isArray(entries)) return NextResponse.json({ error: "logs must be an array" }, { status: 400 });

@@ -162,6 +162,34 @@ export async function getDb(): Promise<Client> {
       `CREATE INDEX IF NOT EXISTS idx_staff_actions_action ON staff_actions(action)`,
       `CREATE INDEX IF NOT EXISTS idx_staff_actions_timestamp ON staff_actions(timestamp)`,
       `CREATE INDEX IF NOT EXISTS idx_staff_actions_source ON staff_actions(source)`,
+      `CREATE TABLE IF NOT EXISTS sanctions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        player_uuid TEXT NOT NULL,
+        player_name TEXT,
+        xuid TEXT,
+        type TEXT NOT NULL,
+        reason TEXT,
+        staff TEXT,
+        duration TEXT,
+        timestamp INTEGER NOT NULL,
+        server_id TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_sanctions_player ON sanctions(player_uuid)`,
+      `CREATE INDEX IF NOT EXISTS idx_sanctions_xuid ON sanctions(xuid)`,
+      `CREATE INDEX IF NOT EXISTS idx_sanctions_timestamp ON sanctions(timestamp)`,
+      `CREATE TABLE IF NOT EXISTS player_identifiers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        player_uuid TEXT NOT NULL,
+        player_name TEXT NOT NULL,
+        xuid TEXT NOT NULL,
+        device_id TEXT,
+        ip_hash TEXT,
+        last_seen INTEGER NOT NULL,
+        UNIQUE(player_uuid)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_player_identifiers_xuid ON player_identifiers(xuid)`,
+      `CREATE INDEX IF NOT EXISTS idx_player_identifiers_device ON player_identifiers(device_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_player_identifiers_ip ON player_identifiers(ip_hash)`,
     ]);
   }
 

@@ -441,6 +441,32 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         return NextResponse.json(result);
       }
 
+      case "stats/items/avg-price": {
+        const sid = q.get("server_id");
+        const sf = serverFilter(sid);
+        const sWhere = sf.where ? `AND ${sf.where}` : "";
+        // Calculate average price per item from economy logs detail field ("for X" pattern)
+        const rows = await getAll(db, `
+          SELECT
+            item_name,
+            ROUND(AVG(CAST(SUBSTR(detail, INSTR(detail, 'for ') + 4,
+              CASE WHEN INSTR(SUBSTR(detail, INSTR(detail, 'for ') + 4), ' ') > 0
+                THEN INSTR(SUBSTR(detail, INSTR(detail, 'for ') + 4), ' ') - 1
+                ELSE LENGTH(SUBSTR(detail, INSTR(detail, 'for ') + 4))
+              END) AS REAL)), 2) as avg_price,
+            COUNT(*) as tx_count
+          FROM logs
+          WHERE category = 'economy'
+            AND action IN ('ShopBuy', 'ShopSell', 'SellAll', 'MarketBuy', 'MarketSell')
+            AND item_name IS NOT NULL AND item_name != ''
+            AND detail LIKE '%for %'
+            ${sWhere}
+          GROUP BY item_name
+          ORDER BY tx_count DESC
+        `, sf.params);
+        return NextResponse.json(rows);
+      }
+
       // ==================== BOXES ====================
       case "stats/boxes": {
         const sid = q.get("server_id");
@@ -492,6 +518,36 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
           if (!player) return NextResponse.json({ error: "Player not found" }, { status: 404 });
           const sf = serverFilter(sid);
           const sWhere = sf.where ? `AND ${sf.where}` : "";
+          // Find alt accounts via shared device_id or ip_hash
+          const playerIdent = await getOne(db, `SELECT * FROM player_identifiers WHERE player_uuid = ?`, [uuid]);
+          let aliases: Record<string, unknown>[] = [];
+          if (playerIdent) {
+            const conditions: string[] = [];
+            const params: unknown[] = [];
+            if (playerIdent.device_id) {
+              conditions.push("device_id = ?");
+              params.push(playerIdent.device_id);
+            }
+            if (playerIdent.ip_hash) {
+              conditions.push("ip_hash = ?");
+              params.push(playerIdent.ip_hash);
+            }
+            if (conditions.length > 0) {
+              aliases = await getAll(db,
+                `SELECT player_uuid, player_name, xuid, device_id, ip_hash, last_seen FROM player_identifiers WHERE (${conditions.join(" OR ")}) AND player_uuid != ? ORDER BY last_seen DESC`,
+                [...params, uuid]
+              );
+              // Tag match reason
+              aliases = aliases.map(a => ({
+                ...a,
+                match_via: [
+                  ...(playerIdent.device_id && a.device_id === playerIdent.device_id ? ["device_id"] : []),
+                  ...(playerIdent.ip_hash && a.ip_hash === playerIdent.ip_hash ? ["ip"] : []),
+                ].join(", ")
+              }));
+            }
+          }
+
           return NextResponse.json({
             player,
             sessions: await getAll(db, `SELECT * FROM sessions WHERE player_uuid = ? ${sWhere} ORDER BY join_time DESC LIMIT 50`, [uuid, ...sf.params]),
@@ -503,6 +559,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
             worldStats: await getAll(db, `SELECT world_name, SUM(duration) as total_time, COUNT(*) as visits FROM world_visits WHERE player_uuid = ? ${sWhere} GROUP BY world_name ORDER BY total_time DESC`, [uuid, ...sf.params]),
             casinoStats: await getOne(db, `SELECT COUNT(*) as total_bets, COALESCE(SUM(bet_amount),0) as total_bet, COALESCE(SUM(win_amount),0) as total_won, COALESCE(SUM(net_result),0) as net FROM casino_transactions WHERE player_uuid = ? ${sWhere}`, [uuid, ...sf.params]),
             casinoHistory: await getAll(db, `SELECT * FROM casino_transactions WHERE player_uuid = ? ${sWhere} ORDER BY timestamp DESC LIMIT 50`, [uuid, ...sf.params]),
+            sanctions: await getAll(db, `SELECT * FROM sanctions WHERE player_uuid = ? ORDER BY timestamp DESC`, [uuid]),
+            aliases,
           });
         }
         return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -511,24 +569,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
       // ==================== STAFF ====================
       case "staff/overview": {
         const now = Date.now(), day = 86400000, week = 7 * day;
+        const from = q.get("from") ? Number(q.get("from")) : null;
+        const to = q.get("to") ? Number(q.get("to")) : null;
+        const rangeWhere = from && to ? "WHERE timestamp BETWEEN ? AND ?" : "";
+        const rangeWhereAnd = from && to ? "AND timestamp BETWEEN ? AND ?" : "";
+        const rangeParams = from && to ? [from, to] : [];
         return NextResponse.json({
-          totalActions: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions")) as Record<string, number>).count,
-          actionsToday: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE timestamp > ?", [now - day])) as Record<string, number>).count,
-          actionsWeek: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE timestamp > ?", [now - week])) as Record<string, number>).count,
-          uniqueStaff: ((await getOne(db, "SELECT COUNT(DISTINCT staff_id) as count FROM staff_actions")) as Record<string, number>).count,
-          totalMutes: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'mute'")) as Record<string, number>).count,
-          totalBans: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'ban'")) as Record<string, number>).count,
-          totalKicks: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'kick'")) as Record<string, number>).count,
-          totalUnmutes: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'unmute'")) as Record<string, number>).count,
-          totalJails: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'jail'")) as Record<string, number>).count,
-          totalTicketClose: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'ticket_close'")) as Record<string, number>).count,
-          totalTicketMessage: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'ticket_message'")) as Record<string, number>).count,
-          totalTicketSummary: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE action = 'ticket_summary'")) as Record<string, number>).count,
+          totalActions: ((await getOne(db, `SELECT COUNT(*) as count FROM staff_actions ${rangeWhere}`, rangeParams)) as Record<string, number>).count,
+          actionsToday: ((await getOne(db, `SELECT COUNT(*) as count FROM staff_actions WHERE timestamp > ? ${rangeWhereAnd}`, [now - day, ...rangeParams])) as Record<string, number>).count,
+          actionsWeek: ((await getOne(db, `SELECT COUNT(*) as count FROM staff_actions WHERE timestamp > ? ${rangeWhereAnd}`, [now - week, ...rangeParams])) as Record<string, number>).count,
+          uniqueStaff: ((await getOne(db, `SELECT COUNT(DISTINCT staff_id) as count FROM staff_actions ${rangeWhere}`, rangeParams)) as Record<string, number>).count,
+          totalMutes: ((await getOne(db, `SELECT COUNT(*) as count FROM staff_actions WHERE action = 'mute' ${rangeWhereAnd}`, rangeParams)) as Record<string, number>).count,
+          totalBans: ((await getOne(db, `SELECT COUNT(*) as count FROM staff_actions WHERE action = 'ban' ${rangeWhereAnd}`, rangeParams)) as Record<string, number>).count,
+          totalKicks: ((await getOne(db, `SELECT COUNT(*) as count FROM staff_actions WHERE action = 'kick' ${rangeWhereAnd}`, rangeParams)) as Record<string, number>).count,
+          totalUnmutes: ((await getOne(db, `SELECT COUNT(*) as count FROM staff_actions WHERE action = 'unmute' ${rangeWhereAnd}`, rangeParams)) as Record<string, number>).count,
+          totalJails: ((await getOne(db, `SELECT COUNT(*) as count FROM staff_actions WHERE action = 'jail' ${rangeWhereAnd}`, rangeParams)) as Record<string, number>).count,
+          totalTicketClose: ((await getOne(db, `SELECT COUNT(*) as count FROM staff_actions WHERE action = 'ticket_close' ${rangeWhereAnd}`, rangeParams)) as Record<string, number>).count,
+          totalTicketMessage: ((await getOne(db, `SELECT COUNT(*) as count FROM staff_actions WHERE action = 'ticket_message' ${rangeWhereAnd}`, rangeParams)) as Record<string, number>).count,
+          totalTicketSummary: ((await getOne(db, `SELECT COUNT(*) as count FROM staff_actions WHERE action = 'ticket_summary' ${rangeWhereAnd}`, rangeParams)) as Record<string, number>).count,
         });
       }
 
       case "staff/leaderboard": {
         const limit = Number(q.get("limit")) || 50;
+        const from = q.get("from") ? Number(q.get("from")) : null;
+        const to = q.get("to") ? Number(q.get("to")) : null;
+        const rangeWhere = from && to ? "WHERE timestamp BETWEEN ? AND ?" : "";
+        const rangeParams = from && to ? [from, to] : [];
         return NextResponse.json(await getAll(db,
           `SELECT staff_id, staff_name, COUNT(*) as total_actions,
             SUM(CASE WHEN action = 'mute' THEN 1 ELSE 0 END) as mutes,
@@ -539,12 +606,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
             SUM(CASE WHEN action = 'ticket_close' THEN 1 ELSE 0 END) as ticket_closes,
             SUM(CASE WHEN action = 'ticket_message' THEN 1 ELSE 0 END) as ticket_messages,
             SUM(CASE WHEN action = 'ticket_summary' THEN 1 ELSE 0 END) as ticket_summaries
-          FROM staff_actions GROUP BY staff_id ORDER BY total_actions DESC LIMIT ?`, [limit]));
+          FROM staff_actions ${rangeWhere} GROUP BY staff_id ORDER BY total_actions DESC LIMIT ?`, [...rangeParams, limit]));
       }
 
       case "staff/daily-activity": {
         const days = Number(q.get("days")) || 30;
         const now = Date.now(), day = 86400000;
+        const from = q.get("from") ? Number(q.get("from")) : null;
+        const to = q.get("to") ? Number(q.get("to")) : null;
+        if (from && to) {
+          // Use actual date range instead of last N days
+          const result = [];
+          const rangeStart = from;
+          const rangeEnd = to;
+          const totalDays = Math.ceil((rangeEnd - rangeStart) / day);
+          for (let i = 0; i < totalDays; i++) {
+            const dayStart = rangeStart + i * day;
+            const dayEnd = Math.min(rangeStart + (i + 1) * day, rangeEnd);
+            result.push({
+              date: new Date(dayStart).toISOString().split("T")[0],
+              actions: ((await getOne(db, "SELECT COUNT(*) as count FROM staff_actions WHERE timestamp BETWEEN ? AND ?", [dayStart, dayEnd])) as Record<string, number>).count,
+            });
+          }
+          return NextResponse.json(result);
+        }
         const result = [];
         for (let i = days - 1; i >= 0; i--) {
           const dayStart = now - (i + 1) * day, dayEnd = now - i * day;
@@ -557,14 +642,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
       }
 
       case "staff/actions-breakdown": {
+        const from = q.get("from") ? Number(q.get("from")) : null;
+        const to = q.get("to") ? Number(q.get("to")) : null;
+        const rangeWhere = from && to ? "WHERE timestamp BETWEEN ? AND ?" : "";
+        const rangeParams = from && to ? [from, to] : [];
         return NextResponse.json(await getAll(db,
-          `SELECT action, COUNT(*) as count FROM staff_actions GROUP BY action ORDER BY count DESC`));
+          `SELECT action, COUNT(*) as count FROM staff_actions ${rangeWhere} GROUP BY action ORDER BY count DESC`, rangeParams));
       }
 
       case "staff/recent": {
         const limit = Number(q.get("limit")) || 50;
+        const from = q.get("from") ? Number(q.get("from")) : null;
+        const to = q.get("to") ? Number(q.get("to")) : null;
+        const rangeWhere = from && to ? "WHERE timestamp BETWEEN ? AND ?" : "";
+        const rangeParams = from && to ? [from, to] : [];
         return NextResponse.json(await getAll(db,
-          `SELECT * FROM staff_actions ORDER BY timestamp DESC LIMIT ?`, [limit]));
+          `SELECT * FROM staff_actions ${rangeWhere} ORDER BY timestamp DESC LIMIT ?`, [...rangeParams, limit]));
       }
     }
   } catch (err) {
