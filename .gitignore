@@ -36,8 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
-# articles data
-/data/
+# articles data (wiki.json is versioned as seed data)
+/data/articles.json
+!/data/wiki.json
 
 # typescript
 *.tsbuildinfo
