@@ -278,6 +278,12 @@ body {
 }
 .gem-shine { animation: gem-shine 2.5s ease-in-out infinite; }
 
+/* Strikethrough price */
+.line-through {
+  text-decoration: line-through;
+  text-decoration-color: #999;
+}
+
 /* ============================================
    WIKI MARKDOWN CONTENT
    ============================================ */

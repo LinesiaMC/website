@@ -23,8 +23,8 @@ export default async function Home({
     <main>
       <Navbar />
       <Hero />
-      <Features />
       <Showcase />
+      <Features />
       <ServerJoin />
       <RecentNews articles={articles} />
       <StoreTeaser />

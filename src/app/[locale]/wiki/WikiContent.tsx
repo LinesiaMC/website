@@ -182,7 +182,7 @@ export default function WikiContent({ pages }: { pages: WikiPage[] }) {
   }
 
   const sidebar = (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Search */}
       <div className="p-3 border-b border-border">
         <div className="relative">
