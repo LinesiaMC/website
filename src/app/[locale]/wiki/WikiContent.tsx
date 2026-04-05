@@ -269,15 +269,15 @@ export default function WikiContent({ pages }: { pages: WikiPage[] }) {
           {mobileOpen && (
             <div className="fixed inset-0 z-30 lg:hidden">
               <div className="absolute inset-0 bg-black/30" onClick={() => setMobileOpen(false)} />
-              <div className="absolute left-0 top-0 bottom-0 w-[280px] bg-white border-r border-border shadow-xl">
+              <div className="absolute left-0 top-0 bottom-0 w-[280px] bg-white border-r border-border shadow-xl overflow-auto">
                 {sidebar}
               </div>
             </div>
           )}
 
           {/* Desktop sidebar */}
-          <aside className="hidden lg:block w-[280px] shrink-0">
-            <div className="mc-card sticky top-28 max-h-[calc(100vh-140px)] overflow-hidden flex flex-col">
+          <aside className="hidden lg:block w-[280px] shrink-0 self-start sticky top-28">
+            <div className="mc-card max-h-[calc(100vh-140px)] overflow-auto flex flex-col">
               {sidebar}
             </div>
           </aside>
