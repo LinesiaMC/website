@@ -2,9 +2,9 @@
 
 import { useTranslations } from "next-intl";
 import { useReveal } from "@/lib/useReveal";
-import { Swords, Shield, Snowflake, Trophy, TrendingUp, Users } from "lucide-react";
+import { Castle, Swords, CalendarClock, Crosshair, TrendingUp, Users } from "lucide-react";
 
-function FeatureCard({ icon: Icon, title, desc, delay }: { icon: typeof Swords; title: string; desc: string; delay: number }) {
+function FeatureCard({ icon: Icon, title, desc, delay }: { icon: typeof Castle; title: string; desc: string; delay: number }) {
   const ref = useReveal();
   return (
     <div
@@ -26,10 +26,10 @@ export default function Features() {
   const titleRef = useReveal();
 
   const features = [
-    { icon: Swords, title: t("pvp.title"), desc: t("pvp.desc") },
-    { icon: Shield, title: t("factions.title"), desc: t("factions.desc") },
-    { icon: Snowflake, title: t("dimensions.title"), desc: t("dimensions.desc") },
-    { icon: Trophy, title: t("events.title"), desc: t("events.desc") },
+    { icon: Castle, title: t("pvp.title"), desc: t("pvp.desc") },
+    { icon: Swords, title: t("factions.title"), desc: t("factions.desc") },
+    { icon: CalendarClock, title: t("dimensions.title"), desc: t("dimensions.desc") },
+    { icon: Crosshair, title: t("events.title"), desc: t("events.desc") },
     { icon: TrendingUp, title: t("progression.title"), desc: t("progression.desc") },
     { icon: Users, title: t("community.title"), desc: t("community.desc") },
   ];

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
-  Package, Search, Activity, Gem, TrendingUp, TrendingDown, ArrowRightLeft,
+  Package, Search, Activity, Gem, TrendingUp, TrendingDown, ArrowRightLeft, Coins,
 } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatNumber } from "@/components/admin/AnalyticsAPI";
@@ -29,6 +29,12 @@ interface DailyItem {
   crafted: number;
 }
 
+interface ItemAvgPrice {
+  item_name: string;
+  avg_price: number;
+  tx_count: number;
+}
+
 export default function ItemsPage() {
   const { locale } = useParams<{ locale: string }>();
   const { headers } = useAdmin();
@@ -36,6 +42,7 @@ export default function ItemsPage() {
   const [totalUnique, setTotalUnique] = useState(0);
   const [totalTx, setTotalTx] = useState(0);
   const [daily, setDaily] = useState<DailyItem[]>([]);
+  const [avgPrices, setAvgPrices] = useState<Record<string, number>>({});
   const [search, setSearch] = useState("");
   const [selectedItem, setSelectedItem] = useState("");
   const [loading, setLoading] = useState(true);
@@ -46,11 +53,19 @@ export default function ItemsPage() {
     setLoading(true);
     const params: Record<string, string> = { limit: "100" };
     if (search) params.search = search;
-    api("stats/items/circulation", params)
-      .then((data) => {
+    Promise.all([
+      api("stats/items/circulation", params),
+      api("stats/items/avg-price"),
+    ])
+      .then(([data, prices]: [{ items: ItemCirculation[]; totalUniqueItems: number; totalTransactions: number }, ItemAvgPrice[]]) => {
         setItems(data.items);
         setTotalUnique(data.totalUniqueItems);
         setTotalTx(data.totalTransactions);
+        const priceMap: Record<string, number> = {};
+        for (const p of prices) {
+          if (p.avg_price) priceMap[p.item_name] = p.avg_price;
+        }
+        setAvgPrices(priceMap);
         setLoading(false);
       })
       .catch(() => {
@@ -282,6 +297,7 @@ export default function ItemsPage() {
                   <th className="text-right px-4 py-2.5 font-semibold text-text-sub">{locale === "fr" ? "Craftes" : "Crafted"}</th>
                   <th className="text-right px-4 py-2.5 font-semibold text-text-sub">{locale === "fr" ? "Via Boxes" : "From Boxes"}</th>
                   <th className="text-right px-4 py-2.5 font-semibold text-text-sub">{locale === "fr" ? "Net circulation" : "Net Circulation"}</th>
+                  <th className="text-right px-4 py-2.5 font-semibold text-text-sub">{locale === "fr" ? "Prix moyen" : "Avg Price"}</th>
                   <th className="text-right px-4 py-2.5 font-semibold text-text-sub">{locale === "fr" ? "Total TX" : "Total TX"}</th>
                 </tr>
               </thead>
@@ -302,13 +318,18 @@ export default function ItemsPage() {
                       <td className={`px-4 py-2.5 text-right font-semibold ${net >= 0 ? "text-green" : "text-red-500"}`}>
                         {net >= 0 ? "+" : ""}{formatNumber(net)}
                       </td>
+                      <td className="px-4 py-2.5 text-right text-amber-600 font-medium">
+                        {avgPrices[item.item_name] != null
+                          ? `${avgPrices[item.item_name].toLocaleString(locale === "fr" ? "fr-FR" : "en-US", { maximumFractionDigits: 1 })}$`
+                          : "-"}
+                      </td>
                       <td className="px-4 py-2.5 text-right text-text-sub">{formatNumber(item.total_tx)}</td>
                     </tr>
                   );
                 })}
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-text-muted">
+                    <td colSpan={8} className="px-4 py-8 text-center text-text-muted">
                       {locale === "fr" ? "Aucun item trouve" : "No items found"}
                     </td>
                   </tr>

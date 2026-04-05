@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
   Shield, ShieldBan, ShieldAlert, ShieldCheck, UserX, Lock,
-  Ticket, MessageSquare, ClipboardList, Activity, TrendingUp,
+  Ticket, MessageSquare, ClipboardList, Activity, TrendingUp, Calendar,
 } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatNumber } from "@/components/admin/AnalyticsAPI";
@@ -97,15 +97,22 @@ export default function StaffPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const api = useRef(createAnalyticsFetcher(headers)).current;
 
   const loadData = useCallback(() => {
+    const rangeParams: Record<string, string> = {};
+    if (dateFrom && dateTo) {
+      rangeParams.from = String(new Date(dateFrom).getTime());
+      rangeParams.to = String(new Date(dateTo + "T23:59:59").getTime());
+    }
     Promise.all([
-      api("staff/overview"),
-      api("staff/leaderboard"),
-      api("staff/daily-activity", { days: "30" }),
-      api("staff/actions-breakdown"),
-      api("staff/recent", { limit: "30" }),
+      api("staff/overview", rangeParams),
+      api("staff/leaderboard", rangeParams),
+      api("staff/daily-activity", { days: "30", ...rangeParams }),
+      api("staff/actions-breakdown", rangeParams),
+      api("staff/recent", { limit: "30", ...rangeParams }),
     ]).then(([o, l, d, b, r]) => {
       setOverview(o);
       setLeaderboard(l);
@@ -117,7 +124,7 @@ export default function StaffPage() {
       setError(locale === "fr" ? "Impossible de charger les statistiques staff." : "Failed to load staff statistics.");
       setLoading(false);
     });
-  }, [api, locale]);
+  }, [api, locale, dateFrom, dateTo]);
 
   useEffect(() => { loadData(); }, [loadData]);
   useAutoRefresh(loadData);
@@ -170,9 +177,35 @@ export default function StaffPage() {
 
   return (
     <div className="max-w-[1200px] mx-auto px-6 py-8">
-      <h1 className="text-xl font-bold text-text mb-6">
-        {locale === "fr" ? "Statistiques Staff" : "Staff Statistics"}
-      </h1>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <h1 className="text-xl font-bold text-text">
+          {locale === "fr" ? "Statistiques Staff" : "Staff Statistics"}
+        </h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Calendar size={14} className="text-text-muted" />
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="px-3 py-1.5 rounded-lg border border-border bg-white text-[12px] text-text focus:border-pink focus:outline-none"
+          />
+          <span className="text-[12px] text-text-muted">{locale === "fr" ? "au" : "to"}</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="px-3 py-1.5 rounded-lg border border-border bg-white text-[12px] text-text focus:border-pink focus:outline-none"
+          />
+          {(dateFrom || dateTo) && (
+            <button
+              onClick={() => { setDateFrom(""); setDateTo(""); }}
+              className="px-3 py-1.5 rounded-lg bg-bg-soft text-[11px] text-text-muted hover:bg-border transition-colors"
+            >
+              {locale === "fr" ? "Reinitialiser" : "Reset"}
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-8">
@@ -195,7 +228,9 @@ export default function StaffPage() {
         {/* Daily Activity */}
         <div className="mc-card p-5 lg:col-span-2">
           <h3 className="text-[14px] font-semibold text-text mb-4">
-            {locale === "fr" ? "Activite staff (30 jours)" : "Staff Activity (30 days)"}
+            {dateFrom && dateTo
+              ? `${locale === "fr" ? "Activite staff" : "Staff Activity"} (${dateFrom} → ${dateTo})`
+              : locale === "fr" ? "Activite staff (30 jours)" : "Staff Activity (30 days)"}
           </h3>
           <div className="h-[250px]">
             <Line

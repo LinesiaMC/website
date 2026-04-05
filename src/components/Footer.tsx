@@ -34,6 +34,7 @@ export default function Footer() {
                 {[
                   { href: "/" as const, label: nav("home") },
                   { href: "/news" as const, label: nav("news") },
+                  { href: "/wiki" as const, label: nav("wiki") },
                   { href: "/store" as const, label: nav("store") },
                 ].map((item) => (
                   <li key={item.href}>

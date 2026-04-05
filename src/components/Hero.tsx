@@ -3,9 +3,11 @@
 import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
 import { Gamepad2, Users, Clock, ChevronDown } from "lucide-react";
+import { useServerStatus } from "@/lib/useServerStatus";
 
 export default function Hero() {
   const t = useTranslations("hero");
+  const { players, online } = useServerStatus();
 
   return (
     <section className="pt-32 pb-20 bg-white">
@@ -17,9 +19,9 @@ export default function Hero() {
           transition={{ duration: 0.5 }}
           className="inline-flex items-center gap-2 bg-bg-soft border border-border rounded-full px-4 py-2 mb-8"
         >
-          <span className="online-dot" />
+          <span className={online ? "online-dot" : "online-dot opacity-40"} />
           <span className="text-[13px] text-text-sub">
-            <span className="font-semibold text-text">142</span> {t("players")}
+            <span className="font-semibold text-text">{players}</span> {t("players")}
           </span>
         </motion.div>
 

@@ -6,12 +6,13 @@ import Link from "next/link";
 import {
   Lock, LogOut, Newspaper, BarChart3, Users, TrendingUp,
   Globe, ScrollText, ChevronLeft, ChevronRight, LayoutDashboard,
-  Coins, Dices, Gem, Box, Shield, MessageSquare, Fingerprint,
+  Coins, Dices, Gem, Box, Shield, MessageSquare, Fingerprint, BookOpen,
 } from "lucide-react";
 import { AdminContext } from "@/components/admin/AdminContext";
 
 const NAV_ITEMS = [
   { key: "articles", icon: Newspaper, path: "/admin" },
+  { key: "wiki", icon: BookOpen, path: "/admin/wiki" },
   { key: "dashboard", icon: LayoutDashboard, path: "/admin/analytics" },
   { key: "players", icon: Users, path: "/admin/analytics/players" },
   { key: "retention", icon: TrendingUp, path: "/admin/analytics/retention" },
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
 
 const NAV_LABELS: Record<string, { fr: string; en: string }> = {
   articles: { fr: "Articles", en: "Articles" },
+  wiki: { fr: "Wiki", en: "Wiki" },
   dashboard: { fr: "Dashboard", en: "Dashboard" },
   players: { fr: "Joueurs", en: "Players" },
   retention: { fr: "Retention", en: "Retention" },
@@ -133,6 +135,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const isActive = (itemPath: string) => {
     const full = `/${locale}${itemPath}`;
     if (itemPath === "/admin") return pathname === full;
+    if (itemPath === "/admin/wiki") return pathname === full;
     if (itemPath === "/admin/analytics/items") return pathname === full;
     return pathname.startsWith(full);
   };

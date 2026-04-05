@@ -4,15 +4,17 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useReveal } from "@/lib/useReveal";
 import { Copy, Check, Monitor, Smartphone, Gamepad, UserPlus } from "lucide-react";
+import { useServerStatus } from "@/lib/useServerStatus";
 
-type Platform = "java" | "bedrock" | "console";
+type Platform = "pc" | "mobile" | "console";
 
 export default function ServerJoin() {
   const t = useTranslations("server");
   const titleRef = useReveal();
   const contentRef = useReveal();
-  const [platform, setPlatform] = useState<Platform>("java");
+  const [platform, setPlatform] = useState<Platform>("pc");
   const [copied, setCopied] = useState(false);
+  const { players, online } = useServerStatus();
 
   const copyIP = () => {
     navigator.clipboard.writeText("play.linesia.net");
@@ -21,21 +23,21 @@ export default function ServerJoin() {
   };
 
   const platforms = [
-    { id: "java" as const, icon: Monitor, label: t("platformJava") },
-    { id: "bedrock" as const, icon: Smartphone, label: t("platformBedrock") },
+    { id: "pc" as const, icon: Monitor, label: t("platformPC") },
+    { id: "mobile" as const, icon: Smartphone, label: t("platformMobile") },
     { id: "console" as const, icon: Gamepad, label: t("platformConsole") },
   ];
 
   const steps: Record<Platform, { num: string; title: string; desc: string }[]> = {
-    java: [
-      { num: "1", title: t("javaStep1"), desc: t("javaStep1desc") },
-      { num: "2", title: t("javaStep2"), desc: t("javaStep2desc") },
-      { num: "3", title: t("javaStep3"), desc: t("javaStep3desc") },
+    pc: [
+      { num: "1", title: t("pcStep1"), desc: t("pcStep1desc") },
+      { num: "2", title: t("pcStep2"), desc: t("pcStep2desc") },
+      { num: "3", title: t("pcStep3"), desc: t("pcStep3desc") },
     ],
-    bedrock: [
-      { num: "1", title: t("bedrockStep1"), desc: t("bedrockStep1desc") },
-      { num: "2", title: t("bedrockStep2"), desc: t("bedrockStep2desc") },
-      { num: "3", title: t("bedrockStep3"), desc: t("bedrockStep3desc") },
+    mobile: [
+      { num: "1", title: t("mobileStep1"), desc: t("mobileStep1desc") },
+      { num: "2", title: t("mobileStep2"), desc: t("mobileStep2desc") },
+      { num: "3", title: t("mobileStep3"), desc: t("mobileStep3desc") },
     ],
     console: [
       { num: "1", title: t("consoleStep1"), desc: t("consoleStep1desc") },
@@ -75,9 +77,9 @@ export default function ServerJoin() {
             {/* IP */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
               <div className="flex items-center gap-3">
-                <span className="online-dot" />
+                <span className={online ? "online-dot" : "online-dot opacity-40"} />
                 <span className="text-[13px] text-text-sub">
-                  <span className="font-semibold text-text">142</span> {t("onlinePlayers")}
+                  <span className="font-semibold text-text">{players}</span> {t("onlinePlayers")}
                 </span>
               </div>
               <button onClick={copyIP} className="ip-pill">
