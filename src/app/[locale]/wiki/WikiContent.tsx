@@ -277,7 +277,7 @@ export default function WikiContent({ pages }: { pages: WikiPage[] }) {
 
           {/* Desktop sidebar */}
           <aside className="hidden lg:block w-[280px] shrink-0 self-start sticky top-28">
-            <div className="mc-card max-h-[calc(100vh-140px)] overflow-auto flex flex-col">
+            <div className="mc-card max-h-[calc(100vh-140px)] overflow-hidden flex flex-col">
               {sidebar}
             </div>
           </aside>

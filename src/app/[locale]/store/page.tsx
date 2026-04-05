@@ -7,7 +7,7 @@ export default function StorePage() {
     <main>
       <Navbar />
       <div className="pt-24">
-        <Store showAll />
+        <Store />
       </div>
       <Footer />
     </main>

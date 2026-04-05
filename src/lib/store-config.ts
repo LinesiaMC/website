@@ -19,51 +19,42 @@ export interface GemPack {
   price: number; // EUR
   tebexPackageId: string | null; // Set to your Tebex package ID
   popular?: boolean;
+  image?: string;
 }
 
 export const GEM_PACKS: GemPack[] = [
   {
     id: "starter",
-    gems: 100,
+    gems: 200,
     bonus: 0,
-    price: 1.99,
+    price: 4.99,
     tebexPackageId: null, // TODO: Set your Tebex package ID
-  },
-  {
-    id: "basic",
-    gems: 250,
-    bonus: 25,
-    price: 4.49,
-    tebexPackageId: null,
+    image: "/images/gems1.png",
   },
   {
     id: "popular",
     gems: 500,
-    bonus: 75,
-    price: 7.99,
+    bonus: 50,
+    price: 9.99,
     tebexPackageId: null,
     popular: true,
+    image: "/images/gems2.png",
   },
   {
     id: "pro",
-    gems: 1000,
+    gems: 1200,
     bonus: 200,
-    price: 14.99,
+    price: 19.99,
     tebexPackageId: null,
-  },
-  {
-    id: "mega",
-    gems: 2500,
-    bonus: 750,
-    price: 34.99,
-    tebexPackageId: null,
+    image: "/images/gems3.png",
   },
   {
     id: "ultimate",
-    gems: 5000,
-    bonus: 2000,
-    price: 59.99,
+    gems: 3500,
+    bonus: 1000,
+    price: 49.99,
     tebexPackageId: null,
+    image: "/images/gems4.png",
   },
 ];
 

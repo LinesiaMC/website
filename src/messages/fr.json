@@ -85,12 +85,22 @@
   "showcase": {
     "label": "Apercu",
     "title": "Plongez dans",
-    "titleHighlight": "l'action",
-    "subtitle": "Decouvrez les differents univers qui vous attendent sur Linesia",
+    "titleHighlight": "l'aventure",
+    "subtitle": "Farm, progression, PvP et exploration : decouvrez tout ce qui vous attend sur Linesia",
+    "islands": "Iles de Faction",
+    "islandsDesc": "Construisez votre ile, developpez vos ressources et faites prosperer votre faction dans le SkyFaction.",
+    "farm": "Farm & Progression",
+    "farmDesc": "Jobs, cultures, moulins et prestiges. Grindez pour devenir le plus riche du serveur.",
     "warzone": "La Warzone",
-    "warzoneDesc": "Un immense spawn avec des builds epiques. Explorez, combattez et dominez la warzone du SkyFaction.",
+    "warzoneDesc": "Un immense spawn avec des builds epiques. Explorez, combattez et dominez.",
     "kitffa": "KitFFA",
-    "kitffaDesc": "Affrontez d'autres joueurs en PvP 24h/24. Parfait pour s'entrainer ou prouver sa valeur."
+    "kitffaDesc": "PvP 24h/24 pour s'entrainer ou prouver sa valeur. Entrez dans l'arene a tout moment."
+  },
+  "storeTeaser": {
+    "title": "Soutenez",
+    "titleHighlight": "Linesia",
+    "desc": "Obtenez des gemmes pour debloquer des cosmetiques, boosts et contenus exclusifs. Chaque achat aide le serveur a grandir.",
+    "cta": "Voir la boutique"
   },
   "faq": {
     "title": "Questions",

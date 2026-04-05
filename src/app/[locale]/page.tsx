@@ -7,7 +7,7 @@ import Features from "@/components/Features";
 import Showcase from "@/components/Showcase";
 import ServerJoin from "@/components/ServerJoin";
 import RecentNews from "@/components/RecentNews";
-import Store from "@/components/Store";
+import StoreTeaser from "@/components/StoreTeaser";
 import FAQ from "@/components/FAQ";
 import Footer from "@/components/Footer";
 
@@ -27,7 +27,7 @@ export default async function Home({
       <Showcase />
       <ServerJoin />
       <RecentNews articles={articles} />
-      <Store />
+      <StoreTeaser />
       <FAQ />
       <Footer />
     </main>
