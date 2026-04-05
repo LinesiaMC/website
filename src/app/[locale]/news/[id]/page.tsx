@@ -10,7 +10,7 @@ export default async function ArticlePage({
   params: Promise<{ locale: string; id: string }>;
 }) {
   const { id } = await params;
-  const article = getArticleById(id);
+  const article = await getArticleById(id);
 
   if (!article) {
     notFound();

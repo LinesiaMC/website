@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getArticles, createArticle, updateArticle, deleteArticle } from "@/lib/articles";
+import { getArticles, getArticlesByLocale, createArticle, updateArticle, deleteArticle } from "@/lib/articles";
 import { ADMIN_PASSWORD } from "@/lib/admin-config";
 
 function checkAuth(req: NextRequest): boolean {
@@ -9,12 +9,7 @@ function checkAuth(req: NextRequest): boolean {
 
 export async function GET(req: NextRequest) {
   const locale = req.nextUrl.searchParams.get("locale");
-  let articles = getArticles();
-  if (locale) {
-    articles = articles
-      .filter((a) => a.locale === locale)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }
+  const articles = locale ? await getArticlesByLocale(locale) : await getArticles();
   return NextResponse.json(articles);
 }
 
@@ -27,7 +22,7 @@ export async function POST(req: NextRequest) {
   if (!title || !excerpt || !content || !date || !locale) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
-  const article = createArticle({ title, excerpt, content, date, locale });
+  const article = await createArticle({ title, excerpt, content, date, locale });
   return NextResponse.json(article, { status: 201 });
 }
 
@@ -40,7 +35,7 @@ export async function PUT(req: NextRequest) {
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
-  const article = updateArticle(id, data);
+  const article = await updateArticle(id, data);
   if (!article) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -55,7 +50,7 @@ export async function DELETE(req: NextRequest) {
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
-  const ok = deleteArticle(id);
+  const ok = await deleteArticle(id);
   if (!ok) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

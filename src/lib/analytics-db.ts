@@ -190,6 +190,31 @@ export async function getDb(): Promise<Client> {
       )`,
       `CREATE INDEX IF NOT EXISTS idx_player_aliases_player ON player_aliases(player_uuid)`,
       `CREATE INDEX IF NOT EXISTS idx_player_aliases_alias ON player_aliases(alias_uuid)`,
+
+      // --- Articles (news) ---
+      `CREATE TABLE IF NOT EXISTS articles (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        excerpt TEXT NOT NULL DEFAULT '',
+        content TEXT NOT NULL DEFAULT '',
+        date TEXT NOT NULL,
+        locale TEXT NOT NULL DEFAULT 'fr'
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_articles_locale ON articles(locale)`,
+      `CREATE INDEX IF NOT EXISTS idx_articles_date ON articles(date)`,
+
+      // --- Wiki pages ---
+      `CREATE TABLE IF NOT EXISTS wiki_pages (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
+        icon TEXT NOT NULL DEFAULT '',
+        parent_id TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_wiki_pages_slug ON wiki_pages(slug)`,
+      `CREATE INDEX IF NOT EXISTS idx_wiki_pages_parent ON wiki_pages(parent_id)`,
     ]);
   }
 

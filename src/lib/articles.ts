@@ -1,9 +1,4 @@
-import fs from "fs";
-import path from "path";
-
-const IS_VERCEL = !!process.env.VERCEL;
-const DATA_DIR = IS_VERCEL ? "/tmp" : path.join(process.cwd(), "data");
-const ARTICLES_FILE = path.join(DATA_DIR, "articles.json");
+import { getDb, getAll, getOne, run } from "./analytics-db";
 
 export interface Article {
   id: string;
@@ -14,58 +9,60 @@ export interface Article {
   locale: "fr" | "en";
 }
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(ARTICLES_FILE)) {
-    fs.writeFileSync(ARTICLES_FILE, JSON.stringify([], null, 2));
-  }
-}
-
-export function getArticles(): Article[] {
-  ensureDataDir();
-  const raw = fs.readFileSync(ARTICLES_FILE, "utf-8");
-  return JSON.parse(raw);
-}
-
-export function getArticlesByLocale(locale: string): Article[] {
-  return getArticles()
-    .filter((a) => a.locale === locale)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-}
-
-export function getArticleById(id: string): Article | undefined {
-  return getArticles().find((a) => a.id === id);
-}
-
-export function createArticle(article: Omit<Article, "id">): Article {
-  ensureDataDir();
-  const articles = getArticles();
-  const newArticle: Article = {
-    ...article,
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+function rowToArticle(row: Record<string, unknown>): Article {
+  return {
+    id: row.id as string,
+    title: row.title as string,
+    excerpt: row.excerpt as string,
+    content: row.content as string,
+    date: row.date as string,
+    locale: row.locale as "fr" | "en",
   };
-  articles.push(newArticle);
-  fs.writeFileSync(ARTICLES_FILE, JSON.stringify(articles, null, 2));
-  return newArticle;
 }
 
-export function updateArticle(id: string, data: Partial<Omit<Article, "id">>): Article | null {
-  ensureDataDir();
-  const articles = getArticles();
-  const idx = articles.findIndex((a) => a.id === id);
-  if (idx === -1) return null;
-  articles[idx] = { ...articles[idx], ...data };
-  fs.writeFileSync(ARTICLES_FILE, JSON.stringify(articles, null, 2));
-  return articles[idx];
+export async function getArticles(): Promise<Article[]> {
+  const db = await getDb();
+  const rows = await getAll(db, "SELECT * FROM articles ORDER BY date DESC");
+  return rows.map(rowToArticle);
 }
 
-export function deleteArticle(id: string): boolean {
-  ensureDataDir();
-  const articles = getArticles();
-  const filtered = articles.filter((a) => a.id !== id);
-  if (filtered.length === articles.length) return false;
-  fs.writeFileSync(ARTICLES_FILE, JSON.stringify(filtered, null, 2));
+export async function getArticlesByLocale(locale: string): Promise<Article[]> {
+  const db = await getDb();
+  const rows = await getAll(db, "SELECT * FROM articles WHERE locale = ? ORDER BY date DESC", [locale]);
+  return rows.map(rowToArticle);
+}
+
+export async function getArticleById(id: string): Promise<Article | undefined> {
+  const db = await getDb();
+  const row = await getOne(db, "SELECT * FROM articles WHERE id = ?", [id]);
+  return row ? rowToArticle(row) : undefined;
+}
+
+export async function createArticle(article: Omit<Article, "id">): Promise<Article> {
+  const db = await getDb();
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  await run(db, "INSERT INTO articles (id, title, excerpt, content, date, locale) VALUES (?, ?, ?, ?, ?, ?)", [
+    id, article.title, article.excerpt, article.content, article.date, article.locale,
+  ]);
+  return { ...article, id };
+}
+
+export async function updateArticle(id: string, data: Partial<Omit<Article, "id">>): Promise<Article | null> {
+  const db = await getDb();
+  const existing = await getOne(db, "SELECT * FROM articles WHERE id = ?", [id]);
+  if (!existing) return null;
+
+  const updated = { ...rowToArticle(existing), ...data };
+  await run(db, "UPDATE articles SET title = ?, excerpt = ?, content = ?, date = ?, locale = ? WHERE id = ?", [
+    updated.title, updated.excerpt, updated.content, updated.date, updated.locale, id,
+  ]);
+  return updated;
+}
+
+export async function deleteArticle(id: string): Promise<boolean> {
+  const db = await getDb();
+  const existing = await getOne(db, "SELECT id FROM articles WHERE id = ?", [id]);
+  if (!existing) return false;
+  await run(db, "DELETE FROM articles WHERE id = ?", [id]);
   return true;
 }

@@ -1,9 +1,4 @@
-import fs from "fs";
-import path from "path";
-
-const IS_VERCEL = !!process.env.VERCEL;
-const DATA_DIR = IS_VERCEL ? "/tmp" : path.join(process.cwd(), "data");
-const WIKI_FILE = path.join(DATA_DIR, "wiki.json");
+import { getDb, getAll, getOne, run } from "./analytics-db";
 
 export interface WikiPage {
   id: string;
@@ -15,74 +10,95 @@ export interface WikiPage {
   order: number;
 }
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(WIKI_FILE)) {
-    fs.writeFileSync(WIKI_FILE, JSON.stringify([], null, 2));
-  }
-}
-
-export function getWikiPages(): WikiPage[] {
-  ensureDataDir();
-  const raw = fs.readFileSync(WIKI_FILE, "utf-8");
-  return JSON.parse(raw);
-}
-
-export function getWikiPageBySlug(slug: string): WikiPage | undefined {
-  return getWikiPages().find((p) => p.slug === slug);
-}
-
-export function getWikiPageById(id: string): WikiPage | undefined {
-  return getWikiPages().find((p) => p.id === id);
-}
-
-export function getWikiChildren(parentId: string | null): WikiPage[] {
-  return getWikiPages()
-    .filter((p) => p.parentId === parentId)
-    .sort((a, b) => a.order - b.order);
-}
-
-export function createWikiPage(page: Omit<WikiPage, "id">): WikiPage {
-  ensureDataDir();
-  const pages = getWikiPages();
-  const newPage: WikiPage = {
-    ...page,
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+function rowToWikiPage(row: Record<string, unknown>): WikiPage {
+  return {
+    id: row.id as string,
+    slug: row.slug as string,
+    title: row.title as string,
+    content: (row.content as string) || "",
+    icon: (row.icon as string) || "",
+    parentId: (row.parent_id as string) || null,
+    order: (row.sort_order as number) || 0,
   };
-  pages.push(newPage);
-  fs.writeFileSync(WIKI_FILE, JSON.stringify(pages, null, 2));
-  return newPage;
 }
 
-export function updateWikiPage(id: string, data: Partial<Omit<WikiPage, "id">>): WikiPage | null {
-  ensureDataDir();
-  const pages = getWikiPages();
-  const idx = pages.findIndex((p) => p.id === id);
-  if (idx === -1) return null;
-  pages[idx] = { ...pages[idx], ...data };
-  fs.writeFileSync(WIKI_FILE, JSON.stringify(pages, null, 2));
-  return pages[idx];
+export async function getWikiPages(): Promise<WikiPage[]> {
+  const db = await getDb();
+  const rows = await getAll(db, "SELECT * FROM wiki_pages ORDER BY sort_order ASC");
+  return rows.map(rowToWikiPage);
 }
 
-export function deleteWikiPage(id: string): boolean {
-  ensureDataDir();
-  const pages = getWikiPages();
-  // Delete page and all its children recursively
-  const toDelete = new Set<string>();
-  const collect = (parentId: string) => {
-    toDelete.add(parentId);
-    pages.filter((p) => p.parentId === parentId).forEach((p) => collect(p.id));
+export async function getWikiPageBySlug(slug: string): Promise<WikiPage | undefined> {
+  const db = await getDb();
+  const row = await getOne(db, "SELECT * FROM wiki_pages WHERE slug = ?", [slug]);
+  return row ? rowToWikiPage(row) : undefined;
+}
+
+export async function getWikiPageById(id: string): Promise<WikiPage | undefined> {
+  const db = await getDb();
+  const row = await getOne(db, "SELECT * FROM wiki_pages WHERE id = ?", [id]);
+  return row ? rowToWikiPage(row) : undefined;
+}
+
+export async function getWikiChildren(parentId: string | null): Promise<WikiPage[]> {
+  const db = await getDb();
+  const rows = parentId
+    ? await getAll(db, "SELECT * FROM wiki_pages WHERE parent_id = ? ORDER BY sort_order ASC", [parentId])
+    : await getAll(db, "SELECT * FROM wiki_pages WHERE parent_id IS NULL ORDER BY sort_order ASC");
+  return rows.map(rowToWikiPage);
+}
+
+export async function createWikiPage(page: Omit<WikiPage, "id">): Promise<WikiPage> {
+  const db = await getDb();
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  await run(db, "INSERT INTO wiki_pages (id, slug, title, content, icon, parent_id, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+    id, page.slug, page.title, page.content, page.icon, page.parentId, page.order,
+  ]);
+  return { ...page, id };
+}
+
+export async function updateWikiPage(id: string, data: Partial<Omit<WikiPage, "id">>): Promise<WikiPage | null> {
+  const db = await getDb();
+  const existing = await getOne(db, "SELECT * FROM wiki_pages WHERE id = ?", [id]);
+  if (!existing) return null;
+
+  const current = rowToWikiPage(existing);
+  const updated = {
+    ...current,
+    ...(data.slug !== undefined && { slug: data.slug }),
+    ...(data.title !== undefined && { title: data.title }),
+    ...(data.content !== undefined && { content: data.content }),
+    ...(data.icon !== undefined && { icon: data.icon }),
+    ...(data.parentId !== undefined && { parentId: data.parentId }),
+    ...(data.order !== undefined && { order: data.order }),
   };
-  collect(id);
-  const filtered = pages.filter((p) => !toDelete.has(p.id));
-  if (filtered.length === pages.length) return false;
-  fs.writeFileSync(WIKI_FILE, JSON.stringify(filtered, null, 2));
+
+  await run(db, "UPDATE wiki_pages SET slug = ?, title = ?, content = ?, icon = ?, parent_id = ?, sort_order = ? WHERE id = ?", [
+    updated.slug, updated.title, updated.content, updated.icon, updated.parentId, updated.order, id,
+  ]);
+  return updated;
+}
+
+export async function deleteWikiPage(id: string): Promise<boolean> {
+  const db = await getDb();
+  const existing = await getOne(db, "SELECT id FROM wiki_pages WHERE id = ?", [id]);
+  if (!existing) return false;
+
+  // Recursively delete children
+  const children = await getAll(db, "SELECT id FROM wiki_pages WHERE parent_id = ?", [id]);
+  for (const child of children) {
+    await deleteWikiPage(child.id as string);
+  }
+  await run(db, "DELETE FROM wiki_pages WHERE id = ?", [id]);
   return true;
 }
 
-export function setWikiPages(pages: WikiPage[]): void {
-  ensureDataDir();
-  fs.writeFileSync(WIKI_FILE, JSON.stringify(pages, null, 2));
+export async function setWikiPages(pages: WikiPage[]): Promise<void> {
+  const db = await getDb();
+  await run(db, "DELETE FROM wiki_pages");
+  for (const page of pages) {
+    await run(db, "INSERT INTO wiki_pages (id, slug, title, content, icon, parent_id, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+      page.id, page.slug, page.title, page.content, page.icon, page.parentId, page.order,
+    ]);
+  }
 }

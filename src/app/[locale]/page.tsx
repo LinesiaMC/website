@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getArticlesByLocale } from "@/lib/articles";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
@@ -15,7 +17,7 @@ export default async function Home({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  const articles = getArticlesByLocale(locale);
+  const articles = await getArticlesByLocale(locale);
 
   return (
     <main>

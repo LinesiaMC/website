@@ -1,10 +1,12 @@
+export const dynamic = "force-dynamic";
+
 import { getWikiPages } from "@/lib/wiki";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import WikiContent from "./WikiContent";
 
 export default async function WikiPage() {
-  const pages = getWikiPages();
+  const pages = await getWikiPages();
 
   return (
     <main className="bg-white min-h-screen">

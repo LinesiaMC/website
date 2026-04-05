@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getArticlesByLocale } from "@/lib/articles";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -9,7 +11,7 @@ export default async function NewsPage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  const articles = getArticlesByLocale(locale);
+  const articles = await getArticlesByLocale(locale);
 
   return (
     <main className="bg-white min-h-screen">

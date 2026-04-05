@@ -14,7 +14,7 @@ function checkAuth(req: NextRequest): boolean {
 }
 
 export async function GET() {
-  const pages = getWikiPages();
+  const pages = await getWikiPages();
   return NextResponse.json(pages);
 }
 
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   // Bulk import
   if (Array.isArray(body)) {
-    setWikiPages(body);
+    await setWikiPages(body);
     return NextResponse.json({ ok: true, count: body.length }, { status: 201 });
   }
 
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   if (!slug || !title) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
-  const page = createWikiPage({
+  const page = await createWikiPage({
     slug,
     title,
     content: content || "",
@@ -54,7 +54,7 @@ export async function PUT(req: NextRequest) {
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
-  const page = updateWikiPage(id, data);
+  const page = await updateWikiPage(id, data);
   if (!page) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -69,7 +69,7 @@ export async function DELETE(req: NextRequest) {
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
-  const ok = deleteWikiPage(id);
+  const ok = await deleteWikiPage(id);
   if (!ok) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
