@@ -82,6 +82,16 @@
     "buyNow": "Acheter",
     "viewAll": "Voir toute la boutique"
   },
+  "showcase": {
+    "label": "Apercu",
+    "title": "Plongez dans",
+    "titleHighlight": "l'action",
+    "subtitle": "Decouvrez les differents univers qui vous attendent sur Linesia",
+    "warzone": "La Warzone",
+    "warzoneDesc": "Un immense spawn avec des builds epiques. Explorez, combattez et dominez la warzone du SkyFaction.",
+    "kitffa": "KitFFA",
+    "kitffaDesc": "Affrontez d'autres joueurs en PvP 24h/24. Parfait pour s'entrainer ou prouver sa valeur."
+  },
   "faq": {
     "title": "Questions",
     "titleHighlight": "Frequentes",

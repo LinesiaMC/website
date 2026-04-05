@@ -2,6 +2,7 @@ import { getArticlesByLocale } from "@/lib/articles";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import Features from "@/components/Features";
+import Showcase from "@/components/Showcase";
 import ServerJoin from "@/components/ServerJoin";
 import RecentNews from "@/components/RecentNews";
 import Store from "@/components/Store";
@@ -21,6 +22,7 @@ export default async function Home({
       <Navbar />
       <Hero />
       <Features />
+      <Showcase />
       <ServerJoin />
       <RecentNews articles={articles} />
       <Store />

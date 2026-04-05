@@ -30,36 +30,70 @@ function slugify(text) {
     .replace(/^-|-$/g, "");
 }
 
+function cleanGitBookMarkdown(text) {
+  // Remove YAML frontmatter
+  text = text.replace(/^---[\s\S]*?---\n*/m, "");
+
+  // Remove GitBook liquid tags
+  text = text.replace(/{% hint style="([^"]*)" %}/g, "> **$1:** ");
+  text = text.replace(/{% endhint %}/g, "");
+  text = text.replace(/{%.*?%}/g, "");
+
+  // Clean <mark> tags: <mark style="color:purple;">text</mark> -> **text**
+  text = text.replace(/<mark[^>]*>\*\*([^*]*)\*\*<\/mark>/g, "**$1**");
+  text = text.replace(/<mark[^>]*>([^<]*)<\/mark>/g, "**$1**");
+
+  // Clean other HTML entities
+  text = text.replace(/&#x20;/g, " ");
+  text = text.replace(/<br\s*\/?>/g, "\n");
+
+  // Fix angle bracket links: [text](<url>) -> [text](url)
+  text = text.replace(/\[([^\]]*)\]\(<([^)]+)>\)/g, "[$1]($2)");
+
+  // Remove GitBook cover/icon metadata lines
+  text = text.replace(/^coverY:.*$/gm, "");
+  text = text.replace(/^cover:.*$/gm, "");
+  text = text.replace(/^icon:.*$/gm, "");
+
+  // Remove first H1 (we show title separately in the UI)
+  text = text.replace(/^#\s+.+\n+/, "");
+
+  // Clean up excessive blank lines
+  text = text.replace(/\n{4,}/g, "\n\n\n");
+
+  return text.trim();
+}
+
 async function fetchFile(filePath) {
   const url = `${BASE}/${filePath}`;
   try {
     const res = await fetch(url);
-    if (!res.ok) return "";
-    let text = await res.text();
-    // Remove GitBook-specific stuff
-    text = text.replace(/^---[\s\S]*?---\n*/m, ""); // frontmatter
-    text = text.replace(/{% hint style="[^"]*" %}/g, "> ");
-    text = text.replace(/{% endhint %}/g, "");
-    text = text.replace(/{%.*?%}/g, ""); // other liquid tags
-    text = text.replace(/\[([^\]]*)\]\(<([^)]+)>\)/g, "[$1]($2)"); // fix angle bracket links
-    // Remove cover/icon lines from gitbook
-    text = text.replace(/^coverY:.*$/gm, "");
-    text = text.replace(/^cover:.*$/gm, "");
-    // Remove first H1 if it matches the title (we show title separately)
-    text = text.replace(/^#\s+.+\n+/, "");
-    return text.trim();
-  } catch {
+    if (!res.ok) {
+      console.log(`  [404] ${filePath}`);
+      return "";
+    }
+    const text = await res.text();
+    return cleanGitBookMarkdown(text);
+  } catch (err) {
+    console.log(`  [ERR] ${filePath}: ${err.message}`);
     return "";
   }
 }
 
-// Define the full wiki structure based on SUMMARY.md
+// Complete wiki structure matching the GitBook SUMMARY.md
 const WIKI_STRUCTURE = [
+  {
+    title: "Accueil - Wiki Linesia",
+    icon: "🔮",
+    slug: "accueil",
+    file: "README.md",
+    children: [],
+  },
   {
     title: "Informations generales",
     icon: "📋",
     slug: "informations-generales",
-    file: "informations-generales/README.md",
+    file: null, // No README exists at this path on GitHub
     children: [
       { title: "Reglement In-Game", icon: "📜", file: "informations-generales/reglement-in-game.md" },
       { title: "Reglement Discord", icon: "💬", file: "informations-generales/reglement-discord.md" },
@@ -320,21 +354,33 @@ async function processNode(node, parentId, order) {
 }
 
 async function main() {
-  console.log("Fetching wiki content from GitHub...");
+  console.log("Fetching wiki content from GitHub...\n");
 
   const allPages = [];
   for (let i = 0; i < WIKI_STRUCTURE.length; i++) {
-    console.log(`Processing: ${WIKI_STRUCTURE[i].title}...`);
+    console.log(`[${i + 1}/${WIKI_STRUCTURE.length}] ${WIKI_STRUCTURE[i].title}...`);
     const pages = await processNode(WIKI_STRUCTURE[i], null, i);
     allPages.push(...pages);
   }
+
+  // Stats
+  const withContent = allPages.filter((p) => p.content.length > 0);
+  const empty = allPages.filter((p) => p.content.length === 0);
 
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 
   fs.writeFileSync(WIKI_FILE, JSON.stringify(allPages, null, 2));
-  console.log(`\nDone! ${allPages.length} pages saved to ${WIKI_FILE}`);
+
+  console.log(`\n=== DONE ===`);
+  console.log(`Total pages: ${allPages.length}`);
+  console.log(`With content: ${withContent.length}`);
+  console.log(`Empty (categories): ${empty.length}`);
+  if (empty.length > 0) {
+    console.log(`Empty pages: ${empty.map((p) => p.title).join(", ")}`);
+  }
+  console.log(`Saved to: ${WIKI_FILE}`);
 }
 
 main().catch(console.error);

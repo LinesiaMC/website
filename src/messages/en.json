@@ -82,6 +82,16 @@
     "buyNow": "Buy",
     "viewAll": "View full store"
   },
+  "showcase": {
+    "label": "Preview",
+    "title": "Dive into",
+    "titleHighlight": "the action",
+    "subtitle": "Discover the different worlds waiting for you on Linesia",
+    "warzone": "The Warzone",
+    "warzoneDesc": "A massive spawn with epic builds. Explore, fight and dominate the SkyFaction warzone.",
+    "kitffa": "KitFFA",
+    "kitffaDesc": "Fight other players in PvP 24/7. Perfect for training or proving your worth."
+  },
   "faq": {
     "title": "Frequently Asked",
     "titleHighlight": "Questions",

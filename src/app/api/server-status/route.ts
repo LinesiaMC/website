@@ -9,7 +9,7 @@ export async function GET() {
   }
 
   try {
-    const res = await fetch("https://api.mcsrvstat.us/bedrock/3/play.linesia.net", {
+    const res = await fetch("https://api.mcstatus.io/v2/status/bedrock/play.linesia.net", {
       next: { revalidate: 60 },
     });
     const data = await res.json();

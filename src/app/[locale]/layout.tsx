@@ -60,7 +60,7 @@ export default async function LocaleLayout({
         <link rel="alternate" hrefLang="x-default" href="https://www.linesia.net/fr" />
       </head>
       <body className="bg-white text-text antialiased">
-        <NextIntlClientProvider messages={messages}>
+        <NextIntlClientProvider locale={locale} messages={messages}>
           {children}
         </NextIntlClientProvider>
       </body>

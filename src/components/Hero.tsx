@@ -68,11 +68,26 @@ export default function Hero() {
           </a>
         </motion.div>
 
+        {/* Hero image */}
+        <motion.div
+          initial={{ opacity: 0, y: 30, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="relative mb-14 rounded-2xl overflow-hidden shadow-[0_8px_40px_rgba(142,45,226,0.12)] border border-border"
+        >
+          <img
+            src="/images/is.jpg"
+            alt="SkyFaction Islands"
+            className="w-full h-[220px] sm:h-[320px] lg:h-[400px] object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+        </motion.div>
+
         {/* Stats row */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
           className="flex flex-wrap justify-center gap-8 sm:gap-16"
         >
           {[
