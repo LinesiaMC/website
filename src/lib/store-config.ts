@@ -33,7 +33,7 @@ export const GEM_PACKS: GemPack[] = [
     id: "starter",
     gems: 15000,
     price: 14.99,
-    tebexPackageId: null, // TODO: Set your Tebex package ID
+    tebexPackageId: "7179723", // TODO: Set your Tebex package ID
     image: "/images/gems1.png",
   },
   {
