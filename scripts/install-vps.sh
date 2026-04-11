@@ -24,15 +24,26 @@
 set -euo pipefail
 
 # ---- config ----------------------------------------------------------------
+# DOMAIN can be a real hostname ("linesia.net") or "_" to expose the site
+# on the VPS public IP without any domain / SSL (useful for test boxes).
 DOMAIN="${DOMAIN:-linesia.net}"
 REPO="${REPO:-}"
-ADMIN_EMAIL="${ADMIN_EMAIL:-admin@${DOMAIN}}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/linesia/website}"
 DATA_DIR="${DATA_DIR:-/opt/linesia/data}"
 SERVICE_USER="${SERVICE_USER:-linesia}"
 NODE_MAJOR="${NODE_MAJOR:-22}"
 PORT="${PORT:-3000}"
+
+# No-domain mode: force-disable SSL and use a nginx catch-all server_name.
+if [[ "${DOMAIN}" == "_" || -z "${DOMAIN}" ]]; then
+  NO_DOMAIN=1
+  DOMAIN="_"
+  ENABLE_SSL="0"
+else
+  NO_DOMAIN=0
+fi
 ENABLE_SSL="${ENABLE_SSL:-1}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
 
 # ---- helpers ---------------------------------------------------------------
 log()  { printf "\033[1;35m[linesia]\033[0m %s\n" "$*"; }
@@ -89,6 +100,15 @@ fi
 ENV_FILE="${INSTALL_DIR}/.env.production"
 if [[ ! -f "${ENV_FILE}" ]]; then
   log "creating template ${ENV_FILE} — EDIT IT BEFORE RESTART"
+
+  if [[ "${NO_DOMAIN}" == "1" ]]; then
+    # Resolve public IP for a sensible NEXT_PUBLIC_SITE_URL default.
+    PUBLIC_IP="$(curl -fsS --max-time 3 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
+    SITE_URL="http://${PUBLIC_IP}"
+  else
+    SITE_URL="https://${DOMAIN}"
+  fi
+
   cat > "${ENV_FILE}" <<EOF
 # --- Linesia website production env ---
 # DB — local SQLite lives under ${DATA_DIR}
@@ -100,8 +120,11 @@ ADMIN_PASSWORD=change-me-${RANDOM}${RANDOM}
 # Analytics ingest key (must match the Minecraft plugin / bot)
 ANALYTICS_API_KEY=change-me-$(head -c 32 /dev/urandom | base64 | tr -d '+/=')
 
+# Tebex store secret (leave empty if unused on this instance)
+TEBEX_SECRET=
+
 # Public site URL
-NEXT_PUBLIC_SITE_URL=https://${DOMAIN}
+NEXT_PUBLIC_SITE_URL=${SITE_URL}
 
 # Node runtime port (nginx upstream)
 PORT=${PORT}
@@ -154,17 +177,24 @@ log "service started — check with: journalctl -u linesia-website -f"
 # ---- 8. nginx reverse proxy -----------------------------------------------
 NGINX_FILE=/etc/nginx/sites-available/linesia-website
 log "writing ${NGINX_FILE}"
+
+if [[ "${NO_DOMAIN}" == "1" ]]; then
+  SERVER_NAMES="_"
+else
+  SERVER_NAMES="${DOMAIN} www.${DOMAIN}"
+fi
+
 cat > "${NGINX_FILE}" <<EOF
-# HTTP → HTTPS redirect (certbot will rewrite this block)
+# Reverse proxy to Next.js.
+# If SSL is enabled later, certbot rewrites this block.
 server {
-    listen 80;
-    listen [::]:80;
-    server_name ${DOMAIN} www.${DOMAIN};
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name ${SERVER_NAMES};
 
     # ACME challenge stays plain http
     location /.well-known/acme-challenge/ { root /var/www/html; }
 
-    # Reverse proxy to Next.js
     location / {
         proxy_pass http://127.0.0.1:${PORT};
         proxy_http_version 1.1;
@@ -178,7 +208,6 @@ server {
         proxy_read_timeout 90s;
     }
 
-    # Static cache for Next.js assets
     location /_next/static/ {
         proxy_pass http://127.0.0.1:${PORT};
         proxy_cache_valid 200 365d;
@@ -221,7 +250,13 @@ log ""
 log "Next steps:"
 log "  1. Edit ${ENV_FILE} and set a strong ADMIN_PASSWORD + ANALYTICS_API_KEY"
 log "  2. Restart: systemctl restart linesia-website"
-log "  3. Check: curl -I https://${DOMAIN}"
+if [[ "${NO_DOMAIN}" == "1" ]]; then
+  PUBLIC_IP_NOTE="$(curl -fsS --max-time 3 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
+  log "  3. Check: curl -I http://${PUBLIC_IP_NOTE}/"
+  log "     Admin: http://${PUBLIC_IP_NOTE}/fr/admin"
+else
+  log "  3. Check: curl -I https://${DOMAIN}"
+fi
 log "  4. (optional) Migrate Turso data:"
 log "       TURSO_DATABASE_URL=libsql://... TURSO_AUTH_TOKEN=... \\"
 log "       LOCAL_DB_PATH=${DATA_DIR}/linesia.db \\"
