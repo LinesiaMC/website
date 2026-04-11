@@ -135,11 +135,15 @@ EOF
 fi
 
 # ---- 6. install + build ---------------------------------------------------
-log "installing deps"
-sudo -u "${SERVICE_USER}" bash -lc "cd '${INSTALL_DIR}' && npm ci --omit=dev --no-audit --no-fund || npm install --no-audit --no-fund"
+# IMPORTANT: devDependencies are required at build time (tailwindcss,
+# @tailwindcss/postcss, typescript, @types/*). We install the full tree,
+# build, then could prune. In practice `next start` still needs some of the
+# dev tooling loaded lazily (postcss for hot CSS), so we keep them.
+log "installing deps (including devDependencies for build)"
+sudo -u "${SERVICE_USER}" bash -lc "cd '${INSTALL_DIR}' && npm ci --include=dev --no-audit --no-fund || npm install --include=dev --no-audit --no-fund"
 
 log "building"
-sudo -u "${SERVICE_USER}" bash -lc "cd '${INSTALL_DIR}' && npm run build"
+sudo -u "${SERVICE_USER}" bash -lc "cd '${INSTALL_DIR}' && NODE_ENV=production npm run build"
 
 # ---- 7. systemd service ---------------------------------------------------
 SERVICE_FILE=/etc/systemd/system/linesia-website.service
