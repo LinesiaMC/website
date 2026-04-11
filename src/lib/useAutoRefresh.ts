@@ -3,10 +3,14 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Auto-refresh hook: calls `callback` every `intervalMs` (default 30s)
+ * Auto-refresh hook: calls `callback` every `intervalMs` (default 2 min)
  * only when the document tab is visible. Pauses when hidden.
+ *
+ * Interval raised from 30s → 120s to protect the analytics DB. The API
+ * layer additionally caches reads for 30s so repeated tabs / pages share
+ * the same snapshot.
  */
-export function useAutoRefresh(callback: () => void, intervalMs = 30000) {
+export function useAutoRefresh(callback: () => void, intervalMs = 120000) {
   const cbRef = useRef(callback);
   cbRef.current = callback;
 

@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, run, getOne, upsertServer } from "@/lib/analytics-db";
+import { cacheInvalidate } from "@/lib/query-cache";
+
+// Tables whose writes should punch through the analytics read cache. We
+// invalidate broadly via prefixes rather than precise keys — cheap enough
+// since the cache is small and TTL is already short.
+const WRITE_INVALIDATE_PREFIXES = [
+  "stats/", "logs", "players", "servers", "staff/",
+];
 
 const API_KEY = process.env.ANALYTICS_API_KEY || "920a083dea9c7132b47ffe03b9f9340ae82947467ab44b733f980e2699515058";
 
@@ -123,31 +131,49 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
         if (!Array.isArray(events)) return NextResponse.json({ error: "events must be an array" }, { status: 400 });
         await upsertServer(db, server_id, server_name);
         const sid = server_id || null;
+
+        // Build one `db.batch()` payload so N events = 1 round-trip to libsql
+        // instead of N sequential awaits.
+        const stmts: Array<{ sql: string; args: unknown[] }> = [];
         for (const e of events) {
           switch (e.type) {
             case "command":
-              await run(db, `INSERT INTO commands (player_uuid, command, arguments, world, timestamp, server_id) VALUES (?,?,?,?,?,?)`,
-                [e.uuid, e.command, e.arguments || "", e.world || "", e.timestamp || Date.now(), sid]);
+              stmts.push({
+                sql: `INSERT INTO commands (player_uuid, command, arguments, world, timestamp, server_id) VALUES (?,?,?,?,?,?)`,
+                args: [e.uuid, e.command, e.arguments || "", e.world || "", e.timestamp || Date.now(), sid],
+              });
               break;
             case "chat":
-              await run(db, `INSERT INTO chat_messages (player_uuid, message, world, timestamp, server_id) VALUES (?,?,?,?,?)`,
-                [e.uuid, e.message, e.world || "", e.timestamp || Date.now(), sid]);
+              stmts.push({
+                sql: `INSERT INTO chat_messages (player_uuid, message, world, timestamp, server_id) VALUES (?,?,?,?,?)`,
+                args: [e.uuid, e.message, e.world || "", e.timestamp || Date.now(), sid],
+              });
               break;
             case "death":
-              await run(db, `INSERT INTO deaths (player_uuid, cause, world, x, y, z, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?)`,
-                [e.uuid, e.cause || "Unknown", e.world || "", e.x || 0, e.y || 0, e.z || 0, e.timestamp || Date.now(), sid]);
+              stmts.push({
+                sql: `INSERT INTO deaths (player_uuid, cause, world, x, y, z, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?)`,
+                args: [e.uuid, e.cause || "Unknown", e.world || "", e.x || 0, e.y || 0, e.z || 0, e.timestamp || Date.now(), sid],
+              });
               break;
             case "block":
-              await run(db, `INSERT INTO block_events (player_uuid, action, block_id, world, x, y, z, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?,?)`,
-                [e.uuid, e.action, e.block_id, e.world || "", e.x || 0, e.y || 0, e.z || 0, e.timestamp || Date.now(), sid]);
+              stmts.push({
+                sql: `INSERT INTO block_events (player_uuid, action, block_id, world, x, y, z, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?,?)`,
+                args: [e.uuid, e.action, e.block_id, e.world || "", e.x || 0, e.y || 0, e.z || 0, e.timestamp || Date.now(), sid],
+              });
               break;
             case "casino": {
               const net = (e.win_amount || 0) - (e.bet_amount || 0);
-              await run(db, `INSERT INTO casino_transactions (player_uuid, game, bet_amount, win_amount, net_result, currency, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?)`,
-                [e.uuid, e.game || "unknown", e.bet_amount || 0, e.win_amount || 0, net, e.currency || "gems", e.timestamp || Date.now(), sid]);
+              stmts.push({
+                sql: `INSERT INTO casino_transactions (player_uuid, game, bet_amount, win_amount, net_result, currency, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?)`,
+                args: [e.uuid, e.game || "unknown", e.bet_amount || 0, e.win_amount || 0, net, e.currency || "gems", e.timestamp || Date.now(), sid],
+              });
               break;
             }
           }
+        }
+        if (stmts.length > 0) {
+          await db.batch(stmts.map((s) => ({ sql: s.sql, args: s.args as never[] })));
+          cacheInvalidate(WRITE_INVALIDATE_PREFIXES);
         }
         return NextResponse.json({ success: true, count: events.length });
       }
@@ -180,10 +206,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
       case "staff-actions": {
         const { actions: staffEntries } = body;
         if (!Array.isArray(staffEntries)) return NextResponse.json({ error: "actions must be an array" }, { status: 400 });
+        const stmts: Array<{ sql: string; args: unknown[] }> = [];
         for (const e of staffEntries) {
           if (!e.staff_id || !e.staff_name || !e.action) continue;
-          await run(db, `INSERT INTO staff_actions (staff_id, staff_name, action, source, target, detail, timestamp) VALUES (?,?,?,?,?,?,?)`,
-            [e.staff_id, e.staff_name, e.action, e.source || "minecraft", e.target || null, e.detail || null, e.timestamp || Date.now()]);
+          stmts.push({
+            sql: `INSERT INTO staff_actions (staff_id, staff_name, action, source, target, detail, timestamp) VALUES (?,?,?,?,?,?,?)`,
+            args: [e.staff_id, e.staff_name, e.action, e.source || "minecraft", e.target || null, e.detail || null, e.timestamp || Date.now()],
+          });
+        }
+        if (stmts.length > 0) {
+          await db.batch(stmts.map((s) => ({ sql: s.sql, args: s.args as never[] })));
+          cacheInvalidate(["staff/"]);
         }
         return NextResponse.json({ success: true, count: staffEntries.length });
       }
@@ -211,16 +244,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
         }
         await upsertServer(db, server_id, server_name);
         const now = Date.now();
-        // Clear old aliases for this player and re-insert
-        await run(db, `DELETE FROM player_aliases WHERE player_uuid = ?`, [player_uuid]);
+        // DELETE + re-inserts folded into one batch round-trip.
+        const stmts: Array<{ sql: string; args: unknown[] }> = [
+          { sql: `DELETE FROM player_aliases WHERE player_uuid = ?`, args: [player_uuid] },
+        ];
         for (const alt of aliases) {
           const aliasUuid = alt.uuid || "";
           if (!aliasUuid) continue;
-          await run(db, `INSERT INTO player_aliases (player_uuid, player_name, alias_uuid, alias_name, alias_xuid, match_via, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(player_uuid, alias_uuid) DO UPDATE SET alias_name=excluded.alias_name, match_via=excluded.match_via, updated_at=excluded.updated_at`,
-            [player_uuid, player_name || "Unknown", aliasUuid, alt.pseudo || "Unknown", alt.xuid || null, alt.match_via || "", now]);
+          stmts.push({
+            sql: `INSERT INTO player_aliases (player_uuid, player_name, alias_uuid, alias_name, alias_xuid, match_via, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(player_uuid, alias_uuid) DO UPDATE SET alias_name=excluded.alias_name, match_via=excluded.match_via, updated_at=excluded.updated_at`,
+            args: [player_uuid, player_name || "Unknown", aliasUuid, alt.pseudo || "Unknown", alt.xuid || null, alt.match_via || "", now],
+          });
         }
+        await db.batch(stmts.map((s) => ({ sql: s.sql, args: s.args as never[] })));
         return NextResponse.json({ success: true, count: aliases.length });
       }
 
@@ -228,16 +266,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
         const { logs: entries, server_id, server_name } = body;
         if (!Array.isArray(entries)) return NextResponse.json({ error: "logs must be an array" }, { status: 400 });
         await upsertServer(db, server_id, server_name);
+        const stmts: Array<{ sql: string; args: unknown[] }> = [];
         for (const e of entries) {
-          await run(db, `INSERT INTO logs (player_uuid,player_name,category,action,detail,item_name,item_count,item_uid,target_player,world,x,y,z,level,timestamp,server_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-            [e.uuid || null, e.player || null, e.category, e.action, e.detail || null, e.item_name || null, e.item_count || null, e.item_uid || null, e.target_player || null, e.world || null, e.x || null, e.y || null, e.z || null, e.level || "info", e.timestamp || Date.now(), server_id || null]);
+          stmts.push({
+            sql: `INSERT INTO logs (player_uuid,player_name,category,action,detail,item_name,item_count,item_uid,target_player,world,x,y,z,level,timestamp,server_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            args: [e.uuid || null, e.player || null, e.category, e.action, e.detail || null, e.item_name || null, e.item_count || null, e.item_uid || null, e.target_player || null, e.world || null, e.x || null, e.y || null, e.z || null, e.level || "info", e.timestamp || Date.now(), server_id || null],
+          });
           if (e.category === "casino" && e.uuid && e.bet_amount != null) {
             const winAmt = e.payout || 0;
             const betAmt = e.bet_amount || 0;
             const net = winAmt - betAmt;
-            await run(db, `INSERT INTO casino_transactions (player_uuid, game, bet_amount, win_amount, net_result, currency, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?)`,
-              [e.uuid, e.action || "unknown", betAmt, winAmt, net, e.bet_type || "money", e.timestamp || Date.now(), server_id || null]);
+            stmts.push({
+              sql: `INSERT INTO casino_transactions (player_uuid, game, bet_amount, win_amount, net_result, currency, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?)`,
+              args: [e.uuid, e.action || "unknown", betAmt, winAmt, net, e.bet_type || "money", e.timestamp || Date.now(), server_id || null],
+            });
           }
+        }
+        if (stmts.length > 0) {
+          await db.batch(stmts.map((s) => ({ sql: s.sql, args: s.args as never[] })));
+          cacheInvalidate(WRITE_INVALIDATE_PREFIXES);
         }
         return NextResponse.json({ success: true, count: entries.length });
       }
