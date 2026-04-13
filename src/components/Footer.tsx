@@ -31,13 +31,17 @@ export default function Footer() {
             <h4 className="text-[13px] font-semibold text-text mb-3">{t("navigation")}</h4>
             <ul className="space-y-2">
               {[
-                { href: "/" as const, label: nav("home") },
-                { href: "/news" as const, label: nav("news") },
-                { href: "/wiki" as const, label: nav("wiki") },
-                { href: "/store" as const, label: nav("store") },
+                { href: "/" as const, label: nav("home"), external: false },
+                { href: "/news" as const, label: nav("news"), external: false },
+                { href: "/wiki" as const, label: nav("wiki"), external: false },
+                { href: "https://store.linesia.net", label: nav("store"), external: true },
               ].map((item) => (
                 <li key={item.href}>
-                  <Link href={item.href} className="text-[13px] text-text-sub hover:text-text transition-colors">{item.label}</Link>
+                  {item.external ? (
+                    <a href={item.href} target="_blank" rel="noopener noreferrer" className="text-[13px] text-text-sub hover:text-text transition-colors">{item.label}</a>
+                  ) : (
+                    <Link href={item.href as "/" | "/news" | "/wiki"} className="text-[13px] text-text-sub hover:text-text transition-colors">{item.label}</Link>
+                  )}
                 </li>
               ))}
             </ul>
@@ -48,6 +52,7 @@ export default function Footer() {
             <ul className="space-y-2">
               <li><a href="https://discord.gg/linesia" target="_blank" rel="noopener noreferrer" className="text-[13px] text-text-sub hover:text-text transition-colors">Discord</a></li>
               <li><a href="https://linesia.tebex.io/" target="_blank" rel="noopener noreferrer" className="text-[13px] text-text-sub hover:text-text transition-colors">Tebex</a></li>
+              <li><a href="/fr/support" className="text-[13px] text-text-sub hover:text-text transition-colors">Support</a></li>
               <li><a href="mailto:support@linesia.net" className="text-[13px] text-text-sub hover:text-text transition-colors">Contact</a></li>
             </ul>
           </div>

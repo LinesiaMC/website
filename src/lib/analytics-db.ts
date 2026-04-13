@@ -219,7 +219,138 @@ export async function getDb(): Promise<Client> {
       )`,
       `CREATE INDEX IF NOT EXISTS idx_wiki_pages_slug ON wiki_pages(slug)`,
       `CREATE INDEX IF NOT EXISTS idx_wiki_pages_parent ON wiki_pages(parent_id)`,
+
+      // --- Roadmap entries (upcoming versions / features) ---
+      `CREATE TABLE IF NOT EXISTS roadmap_entries (
+        id TEXT PRIMARY KEY,
+        version TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'planned',
+        date TEXT NOT NULL DEFAULT '',
+        locale TEXT NOT NULL DEFAULT 'fr',
+        items TEXT NOT NULL DEFAULT '[]',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_roadmap_locale ON roadmap_entries(locale)`,
+      `CREATE INDEX IF NOT EXISTS idx_roadmap_status ON roadmap_entries(status)`,
+      `CREATE INDEX IF NOT EXISTS idx_roadmap_sort ON roadmap_entries(sort_order)`,
+
+      // --- Staff users (Discord + Microsoft OAuth, both optional) ---
+      `CREATE TABLE IF NOT EXISTS staff_users (
+        id TEXT PRIMARY KEY,
+        discord_id TEXT UNIQUE,
+        discord_username TEXT,
+        discord_avatar TEXT,
+        microsoft_id TEXT UNIQUE,
+        microsoft_gamertag TEXT,
+        microsoft_display_name TEXT,
+        display_name TEXT,
+        role TEXT NOT NULL DEFAULT 'guide',
+        created_at INTEGER NOT NULL,
+        last_login INTEGER
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_users_discord ON staff_users(discord_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_users_microsoft ON staff_users(microsoft_id)`,
+
+      // --- Staff sessions ---
+      `CREATE TABLE IF NOT EXISTS staff_sessions (
+        token TEXT PRIMARY KEY,
+        staff_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_sessions_staff ON staff_sessions(staff_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_sessions_exp ON staff_sessions(expires_at)`,
+
+      // --- Support tickets ---
+      `CREATE TABLE IF NOT EXISTS tickets (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        player_name TEXT NOT NULL,
+        contact TEXT,
+        category TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        proof TEXT,
+        status TEXT NOT NULL DEFAULT 'open',
+        assigned_to TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        closed_at INTEGER,
+        closed_by TEXT,
+        close_reason TEXT,
+        close_summary TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)`,
+      `CREATE INDEX IF NOT EXISTS idx_tickets_category ON tickets(category)`,
+      `CREATE INDEX IF NOT EXISTS idx_tickets_code ON tickets(code)`,
+      `CREATE INDEX IF NOT EXISTS idx_tickets_created ON tickets(created_at)`,
+
+      `CREATE TABLE IF NOT EXISTS ticket_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticket_id TEXT NOT NULL,
+        author_type TEXT NOT NULL,
+        author_name TEXT NOT NULL,
+        author_role TEXT,
+        content TEXT NOT NULL,
+        is_internal INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket ON ticket_messages(ticket_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_ticket_messages_created ON ticket_messages(created_at)`,
     ]);
+
+    // --- Staff users schema migration (idempotent) ---
+    // Adds Microsoft columns + relaxes NOT NULL on discord_* if a legacy
+    // schema was created by an older build.
+    try {
+      const cols = await getAll(db, "PRAGMA table_info(staff_users)");
+      const names = new Set(cols.map((c) => c.name as string));
+      const addCol = async (name: string, type: string) => {
+        if (!names.has(name)) {
+          await run(db, `ALTER TABLE staff_users ADD COLUMN ${name} ${type}`);
+        }
+      };
+      await addCol("microsoft_id", "TEXT");
+      await addCol("microsoft_gamertag", "TEXT");
+      await addCol("microsoft_display_name", "TEXT");
+
+      const discordCol = cols.find((c) => c.name === "discord_id");
+      const discordUser = cols.find((c) => c.name === "discord_username");
+      const needsRebuild =
+        (discordCol && Number(discordCol.notnull) === 1) ||
+        (discordUser && Number(discordUser.notnull) === 1);
+      if (needsRebuild) {
+        await db.batch([
+          `ALTER TABLE staff_users RENAME TO staff_users_legacy`,
+          `CREATE TABLE staff_users (
+            id TEXT PRIMARY KEY,
+            discord_id TEXT UNIQUE,
+            discord_username TEXT,
+            discord_avatar TEXT,
+            microsoft_id TEXT UNIQUE,
+            microsoft_gamertag TEXT,
+            microsoft_display_name TEXT,
+            display_name TEXT,
+            role TEXT NOT NULL DEFAULT 'guide',
+            created_at INTEGER NOT NULL,
+            last_login INTEGER
+          )`,
+          `INSERT INTO staff_users (id, discord_id, discord_username, discord_avatar, microsoft_id, microsoft_gamertag, microsoft_display_name, display_name, role, created_at, last_login)
+           SELECT id, discord_id, discord_username, discord_avatar,
+                  COALESCE(microsoft_id, NULL), COALESCE(microsoft_gamertag, NULL), COALESCE(microsoft_display_name, NULL),
+                  display_name, role, created_at, last_login
+           FROM staff_users_legacy`,
+          `DROP TABLE staff_users_legacy`,
+          `CREATE INDEX IF NOT EXISTS idx_staff_users_discord ON staff_users(discord_id)`,
+          `CREATE INDEX IF NOT EXISTS idx_staff_users_microsoft ON staff_users(microsoft_id)`,
+        ]);
+      }
+    } catch (e) {
+      console.error("[db] staff_users migration failed", e);
+    }
   }
 
   return db;

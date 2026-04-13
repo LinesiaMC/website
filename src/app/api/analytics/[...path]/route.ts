@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, getOne, getAll, serverFilter } from "@/lib/analytics-db";
-import { ADMIN_PASSWORD } from "@/lib/admin-config";
 import { cached } from "@/lib/query-cache";
+import { getCurrentStaff } from "@/lib/auth";
+import { hasPermission } from "@/lib/roles";
 
 /**
  * Analytics read API.
@@ -15,9 +16,9 @@ import { cached } from "@/lib/query-cache";
  *    conditional aggregation instead of 5-10 sequential getOne calls.
  */
 
-function checkAuth(req: NextRequest): boolean {
-  const auth = req.headers.get("authorization");
-  return auth === `Bearer ${ADMIN_PASSWORD}`;
+async function checkAuth(req: NextRequest): Promise<boolean> {
+  const staff = await getCurrentStaff(req);
+  return !!staff && hasPermission(staff.role, "analytics.view");
 }
 
 const DAY_MS = 86_400_000;
@@ -58,7 +59,7 @@ function fillDailyBuckets<T extends Record<string, number>>(
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-  if (!checkAuth(req)) {
+  if (!(await checkAuth(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

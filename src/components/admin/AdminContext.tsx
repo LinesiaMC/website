@@ -1,9 +1,26 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import type { StaffRole, Permission } from "@/lib/roles";
+
+export interface CurrentStaff {
+  id: string;
+  discordId: string | null;
+  discordUsername: string | null;
+  discordAvatar: string | null;
+  microsoftId: string | null;
+  microsoftGamertag: string | null;
+  microsoftDisplayName: string | null;
+  displayName: string | null;
+  role: StaffRole;
+  createdAt?: number;
+  lastLogin?: number | null;
+}
 
 interface AdminContextType {
-  password: string;
+  staff: CurrentStaff;
+  can: (perm: Permission) => boolean;
+  logout: () => Promise<void>;
   headers: () => Record<string, string>;
 }
 

@@ -18,7 +18,7 @@ export default function Navbar() {
     { href: "/" as const, label: t("home") },
     { href: "/news" as const, label: t("news") },
     { href: "/wiki" as const, label: t("wiki") },
-    { href: "/store" as const, label: t("store") },
+    { href: "https://store.linesia.net", label: t("store"), external: true },
   ];
 
   const switchLocale = (newLocale: "fr" | "en") => {
@@ -37,19 +37,31 @@ export default function Navbar() {
 
         {/* Center nav */}
         <div className="hidden md:flex items-center gap-8">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`text-[14px] transition-all duration-100 ${
-                pathname === link.href
-                  ? "font-semibold text-text"
-                  : "font-normal text-text-sub hover:font-semibold hover:text-text"
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navLinks.map((link) =>
+            link.external ? (
+              <a
+                key={link.href}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[14px] transition-all duration-100 font-normal text-text-sub hover:font-semibold hover:text-text"
+              >
+                {link.label}
+              </a>
+            ) : (
+              <Link
+                key={link.href}
+                href={link.href as "/" | "/news" | "/wiki"}
+                className={`text-[14px] transition-all duration-100 ${
+                  pathname === link.href
+                    ? "font-semibold text-text"
+                    : "font-normal text-text-sub hover:font-semibold hover:text-text"
+                }`}
+              >
+                {link.label}
+              </Link>
+            )
+          )}
         </div>
 
         {/* Right */}
@@ -111,18 +123,31 @@ export default function Navbar() {
             exit={{ opacity: 0, y: -6 }}
             className="mt-2 bg-white rounded-2xl shadow-lg border border-border p-2 md:hidden"
           >
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileOpen(false)}
-                className={`block px-4 py-3 rounded-xl text-[14px] font-medium ${
-                  pathname === link.href ? "text-pink bg-pink-soft" : "text-text-sub"
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {navLinks.map((link) =>
+              link.external ? (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMobileOpen(false)}
+                  className="block px-4 py-3 rounded-xl text-[14px] font-medium text-text-sub"
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <Link
+                  key={link.href}
+                  href={link.href as "/" | "/news" | "/wiki"}
+                  onClick={() => setMobileOpen(false)}
+                  className={`block px-4 py-3 rounded-xl text-[14px] font-medium ${
+                    pathname === link.href ? "text-pink bg-pink-soft" : "text-text-sub"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              )
+            )}
             <Link href="/" onClick={() => setMobileOpen(false)} className="block mt-1 btn-primary text-center !py-3">
               {t("play")}
             </Link>

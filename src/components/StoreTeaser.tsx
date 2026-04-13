@@ -2,7 +2,6 @@
 
 import { useTranslations } from "next-intl";
 import { useReveal } from "@/lib/useReveal";
-import { Link } from "@/i18n/routing";
 import { ShoppingBag } from "lucide-react";
 
 export default function StoreTeaser() {
@@ -32,13 +31,15 @@ export default function StoreTeaser() {
             </div>
 
             {/* CTA */}
-            <Link
-              href="/store"
+            <a
+              href="https://store.linesia.net"
+              target="_blank"
+              rel="noopener noreferrer"
               className="btn-primary !px-8 !py-3 shrink-0"
             >
               <ShoppingBag size={18} />
               {t("cta")}
-            </Link>
+            </a>
           </div>
         </div>
       </div>
