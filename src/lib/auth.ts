@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import { getDb, getAll, getOne, run } from "./analytics-db";
 import { StaffRole, Permission } from "./roles";
 import { hasPermissionDb } from "./permissions";
+import { PLAYER_SESSION_COOKIE, getSessionAccount } from "./player-auth";
 
 export const SESSION_COOKIE = "linesia_staff_session";
 const SESSION_TTL_DAYS = 30;
@@ -174,14 +175,43 @@ export async function getSessionStaff(token: string): Promise<StaffUser | null> 
 
 export async function getCurrentStaff(req?: NextRequest): Promise<StaffUser | null> {
   let token: string | undefined;
+  let playerToken: string | undefined;
   if (req) {
     token = req.cookies.get(SESSION_COOKIE)?.value;
+    playerToken = req.cookies.get(PLAYER_SESSION_COOKIE)?.value;
   } else {
     const store = await cookies();
     token = store.get(SESSION_COOKIE)?.value;
+    playerToken = store.get(PLAYER_SESSION_COOKIE)?.value;
   }
-  if (!token) return null;
-  return getSessionStaff(token);
+  if (token) {
+    const staff = await getSessionStaff(token);
+    if (staff) return staff;
+  }
+  if (playerToken) {
+    const account = await getSessionAccount(playerToken);
+    if (account) {
+      const db = await getDb();
+      let row: Record<string, unknown> | null = null;
+      if (account.linkedPlayerUuid) {
+        row = await getOne(db,
+          "SELECT * FROM staff_users WHERE linked_xuid = ? ORDER BY source = 'manual' DESC LIMIT 1",
+          [account.linkedPlayerUuid]);
+      }
+      if (!row && account.microsoftId) {
+        row = await getOne(db,
+          "SELECT * FROM staff_users WHERE microsoft_id = ? ORDER BY source = 'manual' DESC LIMIT 1",
+          [account.microsoftId]);
+      }
+      if (!row && account.discordId) {
+        row = await getOne(db,
+          "SELECT * FROM staff_users WHERE discord_id = ? ORDER BY source = 'manual' DESC LIMIT 1",
+          [account.discordId]);
+      }
+      if (row) return rowToStaff(row);
+    }
+  }
+  return null;
 }
 
 export async function requirePermission(req: NextRequest, perm: Permission): Promise<StaffUser | NextResponse> {
