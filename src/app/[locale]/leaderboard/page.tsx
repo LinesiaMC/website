@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Trophy, Search, Clock, Users, ChevronLeft, ChevronRight, Activity, Check } from "lucide-react";
+import { Trophy, Search, Clock, ChevronLeft, ChevronRight, Activity, Check, Crown, Sword, Coins, Zap, Flag, Star } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -17,13 +17,94 @@ interface Row {
   first_seen: number;
   linked?: boolean;
   linked_ms_gamertag?: string | null;
+  rank: string | null;
+  prestige: number;
+  money: number | null;
+  power: number;
+  prime: number | null;
+  kills: number;
+  deaths: number;
+  killstreak: number;
+  kd: number;
+  faction: string | null;
+  stat_value: number | null;
 }
 
-const SORTS = [
-  { key: "total_playtime", fr: "Temps de jeu",       en: "Playtime" },
-  { key: "session_count",  fr: "Nombre de sessions", en: "Sessions" },
-  { key: "last_seen",      fr: "Dernière connexion", en: "Last seen" },
-  { key: "first_seen",     fr: "Ancienneté",         en: "Oldest" },
+interface SortOpt { key: string; fr: string; en: string }
+const SORT_GROUPS: { title: { fr: string; en: string }; items: SortOpt[] }[] = [
+  {
+    title: { fr: "Général", en: "General" },
+    items: [
+      { key: "total_playtime", fr: "Temps de jeu",       en: "Playtime" },
+      { key: "in_playtime",    fr: "Temps in-game",      en: "In-game time" },
+      { key: "session_count",  fr: "Sessions",           en: "Sessions" },
+      { key: "last_seen",      fr: "Dernière connexion", en: "Last seen" },
+      { key: "first_seen",     fr: "Ancienneté",         en: "Oldest" },
+      { key: "prestige",       fr: "Prestige",           en: "Prestige" },
+      { key: "prime",          fr: "VIP",                en: "VIP" },
+    ],
+  },
+  {
+    title: { fr: "Économie & pouvoir", en: "Economy & power" },
+    items: [
+      { key: "money",          fr: "Argent",             en: "Money" },
+      { key: "power",          fr: "Puissance",          en: "Power" },
+      { key: "shop_gain",      fr: "Gains shop",         en: "Shop gains" },
+      { key: "vote_streak",    fr: "Streak votes",       en: "Vote streak" },
+    ],
+  },
+  {
+    title: { fr: "Combat", en: "Combat" },
+    items: [
+      { key: "kills",          fr: "Kills",              en: "Kills" },
+      { key: "deaths",         fr: "Morts",              en: "Deaths" },
+      { key: "kd_ratio",       fr: "Ratio K/D",          en: "K/D ratio" },
+      { key: "killstreak",     fr: "Killstreak",         en: "Killstreak" },
+      { key: "damage_dealt",   fr: "Dégâts infligés",    en: "Damage dealt" },
+      { key: "critical_hit",   fr: "Coups critiques",    en: "Crits" },
+      { key: "bow_use",        fr: "Tirs à l’arc",       en: "Bow shots" },
+      { key: "pearl",          fr: "Perles lancées",     en: "Pearls" },
+      { key: "gapple",         fr: "Gapples mangées",    en: "Gapples" },
+      { key: "healing_heart",  fr: "Cœurs régénérés",    en: "Hearts healed" },
+    ],
+  },
+  {
+    title: { fr: "Mine", en: "Mining" },
+    items: [
+      { key: "mine",           fr: "Blocs minés",        en: "Blocks mined" },
+      { key: "place",          fr: "Blocs posés",        en: "Blocks placed" },
+      { key: "coal_ore",       fr: "Charbon / bois",     en: "Coal / wood" },
+      { key: "emerald_ore",    fr: "Émeraudes",          en: "Emeralds" },
+      { key: "amethyste_ore",  fr: "Améthystes",         en: "Amethysts" },
+      { key: "rubis_ore",      fr: "Rubis",              en: "Rubies" },
+    ],
+  },
+  {
+    title: { fr: "Ferme", en: "Farming" },
+    items: [
+      { key: "wheat",          fr: "Blé",                en: "Wheat" },
+      { key: "beetroot",       fr: "Betteraves",         en: "Beetroot" },
+      { key: "potatoes",       fr: "Pommes de terre",    en: "Potatoes" },
+      { key: "carrots",        fr: "Carottes",           en: "Carrots" },
+      { key: "pumpkin",        fr: "Citrouilles",        en: "Pumpkins" },
+      { key: "melon",          fr: "Pastèques",          en: "Melons" },
+      { key: "nether_wart",    fr: "Nether wart",        en: "Nether wart" },
+    ],
+  },
+  {
+    title: { fr: "Mobs & artisanat", en: "Mobs & crafting" },
+    items: [
+      { key: "zombie",         fr: "Zombies",            en: "Zombies" },
+      { key: "pigman",         fr: "Zombie-cochons",     en: "Pigmen" },
+      { key: "wither",         fr: "Wither skeletons",   en: "Wither skeletons" },
+      { key: "fish",           fr: "Poissons pêchés",    en: "Fish caught" },
+      { key: "fishstreak",     fr: "Streak pêche",       en: "Fish streak" },
+      { key: "repair",         fr: "Réparations",        en: "Repairs" },
+      { key: "enchant",        fr: "Enchantements",      en: "Enchants" },
+      { key: "walk",           fr: "Pas",                en: "Steps" },
+      { key: "message",        fr: "Messages",           en: "Messages" },
+    ],
+  },
 ];
 
 function formatDuration(ms: number): string {
@@ -34,6 +115,10 @@ function formatDuration(ms: number): string {
 }
 function formatDate(ts: number, locale: string): string {
   return new Date(ts).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US", { day: "2-digit", month: "short", year: "numeric" });
+}
+function findSortLabel(key: string, locale: string): string {
+  for (const g of SORT_GROUPS) for (const i of g.items) if (i.key === key) return locale === "fr" ? i.fr : i.en;
+  return key;
 }
 
 export default function LeaderboardPage() {
@@ -64,11 +149,33 @@ export default function LeaderboardPage() {
 
   const totalPages = Math.ceil(total / limit);
 
+  const renderSortValue = (r: Row): string => {
+    if (r.stat_value != null) return r.stat_value.toLocaleString();
+    switch (sort) {
+      case "total_playtime": return formatDuration(r.total_playtime);
+      case "in_playtime":    return formatDuration((r as unknown as { in_playtime?: number }).in_playtime ?? 0);
+      case "session_count":  return r.session_count.toLocaleString();
+      case "last_seen":      return formatDate(r.last_seen, locale);
+      case "first_seen":     return formatDate(r.first_seen, locale);
+      case "prestige":       return `P${r.prestige}`;
+      case "prime":          return r.prime != null ? `${r.prime}$` : "—";
+      case "money":          return r.money != null ? r.money.toLocaleString() : "—";
+      case "power":          return r.power.toLocaleString(undefined, { maximumFractionDigits: 1 });
+      case "kills":          return r.kills.toLocaleString();
+      case "deaths":         return r.deaths.toLocaleString();
+      case "kd_ratio":       return r.kd.toFixed(2);
+      case "killstreak":     return r.killstreak.toLocaleString();
+      default:               return "—";
+    }
+  };
+
+  const sortLabel = findSortLabel(sort, locale);
+
   return (
     <main>
       <Navbar />
     <div className="min-h-screen bg-bg-soft pt-[110px] pb-16 px-4">
-      <div className="max-w-[900px] mx-auto">
+      <div className="max-w-[1100px] mx-auto">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink/10 text-pink text-[12px] font-semibold mb-3">
             <Trophy size={13} />{locale === "fr" ? "Classement" : "Leaderboard"}
@@ -77,7 +184,7 @@ export default function LeaderboardPage() {
             {locale === "fr" ? "Top joueurs Linesia" : "Top Linesia players"}
           </h1>
           <p className="text-[14px] text-text-sub">
-            {locale === "fr" ? "Recherche un joueur ou consulte les meilleurs du serveur." : "Search a player or browse the top of the server."}
+            {locale === "fr" ? "Choisis un tracker et découvre les meilleurs du serveur." : "Pick a tracker and see the top of the server."}
           </p>
         </div>
 
@@ -93,9 +200,13 @@ export default function LeaderboardPage() {
               />
             </div>
             <select value={sort} onChange={(e) => setSort(e.target.value)}
-              className="px-3 py-2.5 rounded-xl border-2 border-border bg-white text-[13px] focus:border-pink focus:outline-none">
-              {SORTS.map((s) => (
-                <option key={s.key} value={s.key}>{locale === "fr" ? s.fr : s.en}</option>
+              className="px-3 py-2.5 rounded-xl border-2 border-border bg-white text-[13px] focus:border-pink focus:outline-none min-w-[220px]">
+              {SORT_GROUPS.map((g) => (
+                <optgroup key={g.title.en} label={locale === "fr" ? g.title.fr : g.title.en}>
+                  {g.items.map((s) => (
+                    <option key={s.key} value={s.key}>{locale === "fr" ? s.fr : s.en}</option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
@@ -109,43 +220,71 @@ export default function LeaderboardPage() {
               {locale === "fr" ? "Aucun joueur trouvé" : "No players found"}
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-border bg-bg-soft">
                   <th className="text-left px-4 py-3 font-semibold text-text-sub w-12">#</th>
                   <th className="text-left px-4 py-3 font-semibold text-text-sub">{locale === "fr" ? "Joueur" : "Player"}</th>
-                  <th className="text-left px-4 py-3 font-semibold text-text-sub"><Clock size={12} className="inline mr-1" />{locale === "fr" ? "Temps" : "Time"}</th>
-                  <th className="text-left px-4 py-3 font-semibold text-text-sub"><Users size={12} className="inline mr-1" />Sessions</th>
-                  <th className="text-left px-4 py-3 font-semibold text-text-sub hidden md:table-cell">{locale === "fr" ? "Vue" : "Last"}</th>
-                  <th className="text-left px-4 py-3 font-semibold text-text-sub hidden md:table-cell">{locale === "fr" ? "Compte" : "Account"}</th>
+                  <th className="text-left px-3 py-3 font-semibold text-text-sub"><Crown size={12} className="inline mr-1" />{locale === "fr" ? "Rang" : "Rank"}</th>
+                  <th className="text-left px-3 py-3 font-semibold text-text-sub hidden md:table-cell"><Flag size={12} className="inline mr-1" />Faction</th>
+                  <th className="text-left px-3 py-3 font-semibold text-text-sub hidden md:table-cell"><Sword size={12} className="inline mr-1" />K/D</th>
+                  <th className="text-left px-3 py-3 font-semibold text-text-sub hidden lg:table-cell"><Coins size={12} className="inline mr-1" />{locale === "fr" ? "Solde" : "Money"}</th>
+                  <th className="text-left px-3 py-3 font-semibold text-text-sub hidden lg:table-cell"><Zap size={12} className="inline mr-1" />{locale === "fr" ? "Puiss." : "Power"}</th>
+                  <th className="text-left px-3 py-3 font-semibold text-text-sub"><Clock size={12} className="inline mr-1" />{locale === "fr" ? "Jeu" : "Time"}</th>
+                  <th className="text-left px-3 py-3 font-semibold text-pink">{sortLabel}</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
-                  <tr key={r.uuid} className="border-b border-border/50 hover:bg-bg-soft/50 transition-colors">
-                    <td className="px-4 py-3 font-mono text-text-muted">{page * limit + i + 1}</td>
-                    <td className="px-4 py-3">
-                      <Link href={`/${locale}/profile/${r.uuid}`} className="font-semibold text-text hover:text-pink transition-colors">
-                        {r.username}
-                      </Link>
-                      <span className="ml-2 text-[11px] text-text-muted">{r.platform}</span>
-                    </td>
-                    <td className="px-4 py-3 text-text-sub">{formatDuration(r.total_playtime)}</td>
-                    <td className="px-4 py-3 text-text-sub">{r.session_count}</td>
-                    <td className="px-4 py-3 text-text-sub hidden md:table-cell">{formatDate(r.last_seen, locale)}</td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      {r.linked ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full" title={r.linked_ms_gamertag || ""}>
-                          <Check size={10} />{locale === "fr" ? "Lié" : "Linked"}
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-text-muted">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {rows.map((r, i) => {
+                  const absRank = page * limit + i + 1;
+                  const medal = absRank === 1 ? "🥇" : absRank === 2 ? "🥈" : absRank === 3 ? "🥉" : null;
+                  return (
+                    <tr key={r.uuid} className="border-b border-border/50 hover:bg-bg-soft/50 transition-colors">
+                      <td className="px-4 py-3 font-mono text-text-muted">
+                        {medal ? <span className="text-[15px]">{medal}</span> : absRank}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link href={`/${locale}/profile/${r.uuid}`} className="font-semibold text-text hover:text-pink transition-colors inline-flex items-center gap-1.5">
+                          {r.username}
+                          {r.prestige > 0 && <span className="text-[10px] font-bold text-pink bg-pink/10 px-1 py-0.5 rounded">P{r.prestige}</span>}
+                          {r.prime != null && <Star size={11} className="text-amber-500" />}
+                          {r.linked && <Check size={11} className="text-green-600" />}
+                        </Link>
+                        <div className="text-[11px] text-text-muted">{r.platform}</div>
+                      </td>
+                      <td className="px-3 py-3">
+                        {r.rank ? (
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-pink bg-pink/10 px-2 py-0.5 rounded">
+                            {r.rank}
+                          </span>
+                        ) : <span className="text-text-muted">—</span>}
+                      </td>
+                      <td className="px-3 py-3 text-text-sub hidden md:table-cell">
+                        {r.faction ? (
+                          <span className="text-[11px] font-semibold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">{r.faction}</span>
+                        ) : <span className="text-text-muted">—</span>}
+                      </td>
+                      <td className="px-3 py-3 hidden md:table-cell">
+                        <span className="text-text font-semibold">{r.kills.toLocaleString()}</span>
+                        <span className="text-text-muted mx-1">/</span>
+                        <span className="text-text-sub">{r.deaths.toLocaleString()}</span>
+                        <span className="ml-1 text-[11px] text-text-muted">({r.kd.toFixed(2)})</span>
+                      </td>
+                      <td className="px-3 py-3 text-text-sub hidden lg:table-cell">
+                        {r.money != null ? r.money.toLocaleString() : "—"}
+                      </td>
+                      <td className="px-3 py-3 text-text-sub hidden lg:table-cell">
+                        {r.power.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </td>
+                      <td className="px-3 py-3 text-text-sub">{formatDuration(r.total_playtime)}</td>
+                      <td className="px-3 py-3 font-bold text-pink">{renderSortValue(r)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 
