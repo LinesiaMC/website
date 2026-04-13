@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   if (!clientId || !clientSecret) return errorRedirect(req, "not_configured", mode);
 
   const redirectUri = process.env.MICROSOFT_REDIRECT_URI
-    || new URL("/api/auth/microsoft/callback", req.nextUrl.origin).toString();
+    || new URL("/api/auth/microsoft/callback", (process.env.SITE_URL || req.nextUrl.origin)).toString();
 
   let profile;
   try {
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
 }
 
 function finish(req: NextRequest, returnTo: string, session: { token: string; expiresAt: number } | null) {
-  const res = NextResponse.redirect(new URL(returnTo, req.nextUrl.origin));
+  const res = NextResponse.redirect(new URL(returnTo, (process.env.SITE_URL || req.nextUrl.origin)));
   if (session) {
     res.cookies.set(SESSION_COOKIE, session.token, {
       httpOnly: true, secure: req.nextUrl.protocol === "https:", sameSite: "lax",
@@ -91,7 +91,7 @@ function finish(req: NextRequest, returnTo: string, session: { token: string; ex
 
 function errorRedirect(req: NextRequest, reason: string, mode: string) {
   const base = mode === "link" ? "/fr/admin/profile" : "/fr/admin";
-  const url = new URL(base, req.nextUrl.origin);
+  const url = new URL(base, (process.env.SITE_URL || req.nextUrl.origin));
   url.searchParams.set("auth_error", reason);
   const res = NextResponse.redirect(url);
   res.cookies.delete(OAUTH_STATE_COOKIE);

@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 function buildRedirectUri(req: NextRequest): string {
   const configured = process.env.DISCORD_REDIRECT_URI;
   if (configured) return configured;
-  return new URL("/api/auth/discord/callback", req.nextUrl.origin).toString();
+  return new URL("/api/auth/discord/callback", (process.env.SITE_URL || req.nextUrl.origin)).toString();
 }
 
 function isSecure(req: NextRequest): boolean {
