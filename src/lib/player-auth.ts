@@ -255,19 +255,42 @@ export async function getCurrentAccount(req?: NextRequest): Promise<PlayerAccoun
   return getSessionAccount(token);
 }
 
-export interface JobInfo { name: string; level: number; xp: number }
+export interface JobInfo { name: string; level: number; xp: number; maxXp: number }
 export interface CosmeticInfo {
   fullId: string; type: string; identifier: string; name: string | null; active: boolean;
 }
+export interface FactionInfo {
+  name: string;
+  role: string;
+  power: number;
+  members: number;
+  maxMembers: number;
+  allies: string[];
+  description: string;
+  leader: string | null;
+}
+export type StatsSnapshot = Record<string, number | string>;
 export interface ProfileExtra {
   rank: string | null;
+  rankColor: string | null;
   prestige: number;
+  power: number;
+  prime: number | null;
   kills: number;
+  deaths: number;
   killstreak: number;
   joinCount: number;
+  playtime: number;
   firstJoin: string | null;
   lastLeave: string | null;
+  description: string | null;
+  lang: string | null;
+  discordId: string | null;
+  completedQuests: string[];
   jobs: JobInfo[];
+  stats: StatsSnapshot;
+  faction: FactionInfo | null;
+  money: number;
 }
 
 export interface PlayerStats {
@@ -315,21 +338,51 @@ export async function getPlayerStats(idOrXuid: string): Promise<PlayerStats | nu
   if (xuid) {
     const ext = await getOne(db, "SELECT * FROM player_profile_extra WHERE xuid = ?", [xuid]);
     if (ext) {
-      let jobs: JobInfo[] = [];
-      try {
-        const raw = ext.jobs as string | null;
-        if (raw) jobs = JSON.parse(raw) as JobInfo[];
-      } catch {}
-      const moneyExt = Number(ext.money);
+      const parseJson = <T,>(raw: unknown, fallback: T): T => {
+        if (typeof raw !== "string" || !raw) return fallback;
+        try { return JSON.parse(raw) as T; } catch { return fallback; }
+      };
+      const rawJobs = parseJson<Array<Record<string, unknown>>>(ext.jobs, []);
+      const jobs: JobInfo[] = rawJobs.map((j) => ({
+        name: String(j.name ?? ""),
+        level: Number(j.level ?? 1),
+        xp: Number(j.xp ?? 0),
+        maxXp: Number(j.max_xp ?? j.maxXp ?? 0),
+      }));
+      const rawFaction = parseJson<Record<string, unknown> | null>(ext.faction_json, null);
+      const faction: FactionInfo | null = rawFaction ? {
+        name: String(rawFaction.name ?? ""),
+        role: String(rawFaction.role ?? ""),
+        power: Number(rawFaction.power ?? 0),
+        members: Number(rawFaction.members ?? 0),
+        maxMembers: Number(rawFaction.max_members ?? 0),
+        allies: Array.isArray(rawFaction.allies) ? (rawFaction.allies as unknown[]).map((a) => String(a)) : [],
+        description: String(rawFaction.description ?? ""),
+        leader: rawFaction.leader ? String(rawFaction.leader) : null,
+      } : null;
+      const statsSnap = parseJson<StatsSnapshot>(ext.stats_json, {});
+      const quests = parseJson<string[]>(ext.completed_quests, []);
       extra = {
         rank: (ext.rank as string) || null,
+        rankColor: (ext.rank_color as string) || null,
         prestige: Number(ext.prestige) || 0,
+        power: Number(ext.power) || 0,
+        prime: ext.prime != null ? Number(ext.prime) : null,
         kills: Number(ext.kills) || 0,
+        deaths: Number(ext.deaths) || 0,
         killstreak: Number(ext.killstreak) || 0,
         joinCount: Number(ext.join_count) || 0,
+        playtime: Number(ext.playtime) || 0,
         firstJoin: (ext.first_join as string) || null,
         lastLeave: (ext.last_leave as string) || null,
+        description: (ext.description as string) || null,
+        lang: (ext.lang as string) || null,
+        discordId: (ext.discord_id as string) || null,
+        completedQuests: Array.isArray(quests) ? quests : [],
         jobs,
+        stats: statsSnap || {},
+        faction,
+        money: Number(ext.money) || 0,
       };
       const cosRows = await db.execute({
         sql: "SELECT full_id, type, identifier, name, active FROM player_cosmetics WHERE xuid = ? ORDER BY active DESC, type, name",
@@ -342,10 +395,12 @@ export async function getPlayerStats(idOrXuid: string): Promise<PlayerStats | nu
         name: (r.name as string) || null,
         active: Number(r.active) === 1,
       }));
-      // Override money/kills/deaths with the more recent ingame-pushed values when present.
-      void moneyExt;
     }
   }
+
+  const moneyValue = extra && extra.money !== 0
+    ? extra.money
+    : (money ? Number(money.m) || 0 : null);
 
   return {
     uuid: p.uuid as string,
@@ -356,9 +411,9 @@ export async function getPlayerStats(idOrXuid: string): Promise<PlayerStats | nu
     lastSeen: p.last_seen as number,
     totalPlaytime: (p.total_playtime as number) || 0,
     sessionCount: (p.session_count as number) || 0,
-    money: money ? Number(money.m) || 0 : null,
+    money: moneyValue,
     casinoNet: casino ? Number(casino.net) : null,
-    deaths: (deaths?.c as number) || 0,
+    deaths: extra && extra.deaths ? extra.deaths : ((deaths?.c as number) || 0),
     extra,
     cosmetics,
   };

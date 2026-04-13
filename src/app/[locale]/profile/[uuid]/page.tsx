@@ -4,22 +4,38 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Clock, Users, Coins, Skull, Dice5, Activity, Sword, Crown, Sparkles, Briefcase, Link as LinkIcon, Check, Gamepad2, ShieldCheck, ShieldAlert, Terminal, MessageSquare } from "lucide-react";
+import { ArrowLeft, Clock, Users, Coins, Skull, Dice5, Activity, Sword, Crown, Sparkles, Briefcase, Link as LinkIcon, Check, Gamepad2, ShieldCheck, ShieldAlert, Terminal, MessageSquare, Flag, Star, Pickaxe, Wheat, Fish, Zap, Target, Footprints } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { ROLE_LABELS, ROLE_COLORS, StaffRole, Permission, hasPermission } from "@/lib/roles";
 
-interface JobInfo { name: string; level: number; xp: number }
+interface JobInfo { name: string; level: number; xp: number; maxXp: number }
 interface CosmeticInfo { fullId: string; type: string; identifier: string; name: string | null; active: boolean }
+interface FactionInfo {
+  name: string; role: string; power: number; members: number; maxMembers: number;
+  allies: string[]; description: string; leader: string | null;
+}
 interface ProfileExtra {
   rank: string | null;
+  rankColor: string | null;
   prestige: number;
+  power: number;
+  prime: number | null;
   kills: number;
+  deaths: number;
   killstreak: number;
   joinCount: number;
+  playtime: number;
   firstJoin: string | null;
   lastLeave: string | null;
+  description: string | null;
+  lang: string | null;
+  discordId: string | null;
+  completedQuests: string[];
   jobs: JobInfo[];
+  stats: Record<string, number | string>;
+  faction: FactionInfo | null;
+  money: number;
 }
 interface Stats {
   uuid: string;
@@ -160,6 +176,17 @@ export default function PlayerProfilePage() {
                         {stats.extra.prestige > 0 && <span className="ml-1 text-text-sub">· P{stats.extra.prestige}</span>}
                       </div>
                     )}
+                    {stats.extra?.faction && (
+                      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-purple-700 bg-purple-100 px-2 py-1 rounded">
+                        <Flag size={12} />{stats.extra.faction.name}
+                        <span className="ml-1 text-text-sub normal-case">· {stats.extra.faction.role}</span>
+                      </div>
+                    )}
+                    {stats.extra?.prime != null && (
+                      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-1 rounded">
+                        <Star size={12} />VIP <span className="ml-1 normal-case">{stats.extra.prime}$</span>
+                      </div>
+                    )}
                     {link ? (
                       <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded">
                         <Check size={12} />
@@ -188,23 +215,79 @@ export default function PlayerProfilePage() {
                 <Stat icon={Sword}  label={locale === "fr" ? "Kills" : "Kills"}            value={stats.extra.kills.toLocaleString()} />
                 <Stat icon={Sword}  label="Killstreak"                                     value={stats.extra.killstreak.toLocaleString()} />
                 <Stat icon={Users}  label={locale === "fr" ? "Connexions" : "Joins"}       value={stats.extra.joinCount.toLocaleString()} />
+                <Stat icon={Zap}    label={locale === "fr" ? "Puissance" : "Power"}        value={stats.extra.power.toLocaleString(undefined, { maximumFractionDigits: 1 })} />
+                <Stat icon={Crown}  label="Prestige"                                       value={`P${stats.extra.prestige}`} />
               </>}
             </div>
+
+            {stats.extra?.faction && (
+              <div className="mc-card p-5 mb-5">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-text-sub uppercase tracking-wider mb-3">
+                  <Flag size={12} className="text-pink" />{locale === "fr" ? "Faction" : "Faction"}
+                </div>
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-bold text-text">{stats.extra.faction.name}</p>
+                    <p className="text-[12px] text-text-sub capitalize">{stats.extra.faction.role}{stats.extra.faction.leader ? ` · ${locale === "fr" ? "Chef" : "Leader"}: ${stats.extra.faction.leader}` : ""}</p>
+                    {stats.extra.faction.description && (
+                      <p className="text-[12px] text-text-muted mt-1 italic">&ldquo;{stats.extra.faction.description}&rdquo;</p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-[11px] text-text-muted uppercase">{locale === "fr" ? "Puissance" : "Power"}</p>
+                    <p className="text-[18px] font-bold text-pink">{stats.extra.faction.power.toLocaleString(undefined, { maximumFractionDigits: 1 })}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[12px]">
+                  <div className="bg-bg-soft rounded-lg p-2.5 flex items-center justify-between">
+                    <span className="text-text-sub">{locale === "fr" ? "Membres" : "Members"}</span>
+                    <span className="font-semibold text-text">{stats.extra.faction.members}{stats.extra.faction.maxMembers ? ` / ${stats.extra.faction.maxMembers}` : ""}</span>
+                  </div>
+                  <div className="bg-bg-soft rounded-lg p-2.5 flex items-center justify-between">
+                    <span className="text-text-sub">{locale === "fr" ? "Alliés" : "Allies"}</span>
+                    <span className="font-semibold text-text">{stats.extra.faction.allies.length}</span>
+                  </div>
+                </div>
+                {stats.extra.faction.allies.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {stats.extra.faction.allies.map((a) => (
+                      <span key={a} className="text-[11px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">{a}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {stats.extra && stats.extra.jobs.length > 0 && (
               <div className="mc-card p-5 mb-5">
                 <div className="flex items-center gap-1.5 text-[11px] font-semibold text-text-sub uppercase tracking-wider mb-3">
                   <Briefcase size={12} className="text-pink" />{locale === "fr" ? "Métiers" : "Jobs"}
+                  <span className="ml-auto text-text-muted normal-case tracking-normal">{stats.extra.jobs.length}</span>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {stats.extra.jobs.map((j) => (
-                    <div key={j.name} className="bg-bg-soft rounded-lg p-3 flex items-center justify-between">
-                      <span className="text-[13px] font-medium text-text capitalize">{j.name}</span>
-                      <span className="text-[12px] text-text-sub">Lv. {j.level}</span>
-                    </div>
-                  ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {stats.extra.jobs.map((j) => {
+                    const pct = j.maxXp > 0 ? Math.min(100, Math.round((j.xp / j.maxXp) * 100)) : 0;
+                    return (
+                      <div key={j.name} className="bg-bg-soft rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[13px] font-medium text-text capitalize">{j.name}</span>
+                          <span className="text-[12px] text-text-sub">Lv. {j.level}</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-white overflow-hidden">
+                          <div className="h-full bg-pink" style={{ width: `${pct}%` }} />
+                        </div>
+                        <p className="text-[10px] text-text-muted mt-1">
+                          {j.xp.toLocaleString(undefined, { maximumFractionDigits: 0 })} / {j.maxXp > 0 ? j.maxXp.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—"} XP
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
+            )}
+
+            {stats.extra && Object.keys(stats.extra.stats).length > 0 && (
+              <StatsBreakdown stats={stats.extra.stats} locale={locale} />
             )}
 
             <div className="mc-card p-5">
@@ -504,6 +587,115 @@ function Stat({ icon: Icon, label, value }: { icon: React.ComponentType<{ size?:
         <Icon size={12} className="text-pink" />{label}
       </div>
       <div className="text-xl font-bold text-text">{value}</div>
+    </div>
+  );
+}
+
+type IconCmp = React.ComponentType<{ size?: number; className?: string }>;
+const STAT_GROUPS: { title: { fr: string; en: string }; icon: IconCmp; keys: { key: string; fr: string; en: string }[] }[] = [
+  {
+    title: { fr: "Combat", en: "Combat" }, icon: Sword,
+    keys: [
+      { key: "kills", fr: "Kills", en: "Kills" },
+      { key: "deaths", fr: "Morts", en: "Deaths" },
+      { key: "killstreak", fr: "Killstreak", en: "Killstreak" },
+      { key: "damage_dealt", fr: "Dégâts infligés", en: "Damage dealt" },
+      { key: "critical_hit", fr: "Coups critiques", en: "Crits" },
+      { key: "bow_use", fr: "Tirs à l’arc", en: "Bow shots" },
+      { key: "pearl", fr: "Perles lancées", en: "Pearls" },
+      { key: "stick_used", fr: "Bâtons utilisés", en: "Sticks used" },
+      { key: "gapple", fr: "Gapples mangées", en: "Gapples eaten" },
+      { key: "healing_heart", fr: "Cœurs régénérés", en: "Hearts healed" },
+    ],
+  },
+  {
+    title: { fr: "Mine", en: "Mining" }, icon: Pickaxe,
+    keys: [
+      { key: "mine", fr: "Blocs minés", en: "Blocks mined" },
+      { key: "place", fr: "Blocs posés", en: "Blocks placed" },
+      { key: "coal_ore", fr: "Minerai charbon / bois", en: "Coal / wood" },
+      { key: "emerald_ore", fr: "Émeraudes", en: "Emeralds" },
+      { key: "amethyste_ore", fr: "Améthystes", en: "Amethysts" },
+      { key: "rubis_ore", fr: "Rubis", en: "Rubies" },
+    ],
+  },
+  {
+    title: { fr: "Ferme", en: "Farming" }, icon: Wheat,
+    keys: [
+      { key: "wheat", fr: "Blé", en: "Wheat" },
+      { key: "beetroot", fr: "Betteraves", en: "Beetroot" },
+      { key: "potatoes", fr: "Pommes de terre", en: "Potatoes" },
+      { key: "carrots", fr: "Carottes", en: "Carrots" },
+      { key: "pumpkin", fr: "Citrouilles", en: "Pumpkins" },
+      { key: "melon", fr: "Pastèques", en: "Melons" },
+      { key: "nether_wart", fr: "Nether wart", en: "Nether wart" },
+    ],
+  },
+  {
+    title: { fr: "Mobs", en: "Mobs" }, icon: Target,
+    keys: [
+      { key: "zombie", fr: "Zombies", en: "Zombies" },
+      { key: "pigman", fr: "Zombie-cochons", en: "Pigmen" },
+      { key: "wither", fr: "Wither skeletons", en: "Wither skeletons" },
+    ],
+  },
+  {
+    title: { fr: "Pêche & artisanat", en: "Fishing & crafting" }, icon: Fish,
+    keys: [
+      { key: "fish", fr: "Poissons pêchés", en: "Fish caught" },
+      { key: "fishstreak", fr: "Streak pêche", en: "Fish streak" },
+      { key: "repair", fr: "Réparations", en: "Repairs" },
+      { key: "enchant", fr: "Enchantements", en: "Enchants" },
+      { key: "recycler_nugget", fr: "Nuggets recyclés", en: "Nuggets recycled" },
+    ],
+  },
+  {
+    title: { fr: "Activité", en: "Activity" }, icon: Footprints,
+    keys: [
+      { key: "walk", fr: "Pas", en: "Steps" },
+      { key: "message", fr: "Messages", en: "Messages" },
+      { key: "switchball", fr: "Switch-balls", en: "Switch-balls" },
+      { key: "vote_streak", fr: "Streak votes", en: "Vote streak" },
+      { key: "shop_gain", fr: "Gains shop", en: "Shop gains" },
+    ],
+  },
+];
+
+function StatsBreakdown({ stats, locale }: { stats: Record<string, number | string>; locale: string }) {
+  return (
+    <div className="mc-card p-5 mb-5">
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-text-sub uppercase tracking-wider mb-3">
+        <Activity size={12} className="text-pink" />{locale === "fr" ? "Statistiques détaillées" : "Detailed stats"}
+      </div>
+      <div className="space-y-4">
+        {STAT_GROUPS.map((g) => {
+          const Icon = g.icon;
+          const rows = g.keys.filter((k) => {
+            const v = stats[k.key];
+            return typeof v === "number" ? v > 0 : (typeof v === "string" && v !== "");
+          });
+          if (rows.length === 0) return null;
+          return (
+            <div key={g.title.en}>
+              <div className="text-[11px] font-semibold text-text-sub uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Icon size={12} className="text-pink" />{locale === "fr" ? g.title.fr : g.title.en}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {rows.map((k) => {
+                  const v = stats[k.key];
+                  const display = typeof v === "number" ? v.toLocaleString() : String(v);
+                  return (
+                    <div key={k.key} className="bg-bg-soft rounded-lg p-2.5 flex items-center justify-between">
+                      <span className="text-[12px] text-text-sub">{locale === "fr" ? k.fr : k.en}</span>
+                      <span className="text-[13px] font-semibold text-text">{display}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

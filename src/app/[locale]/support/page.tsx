@@ -87,44 +87,54 @@ export default function SupportPage() {
           </p>
         </div>
 
-        {loggedIn && myTickets && myTickets.length > 0 && (
+        {loggedIn ? (
           <div className="mc-card p-5 mb-6">
             <div className="flex items-center gap-2 mb-3">
               <Inbox size={14} className="text-pink" />
               <h2 className="text-[13px] font-bold text-text">{locale === "fr" ? "Mes tickets" : "My tickets"}</h2>
-              <span className="text-[11px] text-text-muted">({myTickets.length})</span>
+              {myTickets && <span className="text-[11px] text-text-muted">({myTickets.length})</span>}
             </div>
-            <ul className="space-y-1.5">
-              {myTickets.map((t) => (
-                <li key={t.id}>
-                  <Link href={`/${locale}/support/${t.code}`}
-                    className="flex items-center gap-2 p-2.5 rounded-lg border border-border hover:border-pink hover:bg-pink/5 transition-colors">
-                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                      t.status === "open" ? "bg-blue-50 text-blue-600" :
-                      t.status === "pending" ? "bg-orange-50 text-orange-600" :
-                      "bg-gray-100 text-gray-600"
-                    }`}>{t.status}</span>
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-50 text-violet-600">{CATEGORY_LABELS[t.category].fr}</span>
-                    <span className="text-[13px] text-text truncate flex-1">{t.subject}</span>
-                    <span className="text-[10px] font-mono text-text-muted">{t.code}</span>
-                    <ChevronRight size={13} className="text-text-muted" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            {!myTickets ? (
+              <p className="text-[12px] text-text-muted">{locale === "fr" ? "Chargement..." : "Loading..."}</p>
+            ) : myTickets.length === 0 ? (
+              <p className="text-[12px] text-text-sub">
+                {locale === "fr" ? "Aucun ticket pour le moment. Ouvre-en un ci-dessous." : "No tickets yet. Open one below."}
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {myTickets.map((t) => (
+                  <li key={t.id}>
+                    <Link href={`/${locale}/support/${t.code}`}
+                      className="flex items-center gap-2 p-2.5 rounded-lg border border-border hover:border-pink hover:bg-pink/5 transition-colors">
+                      <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                        t.status === "open" ? "bg-blue-50 text-blue-600" :
+                        t.status === "pending" ? "bg-orange-50 text-orange-600" :
+                        "bg-gray-100 text-gray-600"
+                      }`}>{t.status}</span>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-50 text-violet-600">{CATEGORY_LABELS[t.category].fr}</span>
+                      <span className="text-[13px] text-text truncate flex-1">{t.subject}</span>
+                      <ChevronRight size={13} className="text-text-muted" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <div className="mc-card p-5 mb-6">
+            <h2 className="text-[13px] font-bold text-text mb-2">{locale === "fr" ? "Retrouver un ticket" : "Find a ticket"}</h2>
+            <form onSubmit={(e) => { e.preventDefault(); if (lookup.trim()) router.push(`/${locale}/support/${lookup.trim().toUpperCase()}`); }}
+              className="flex gap-2">
+              <input value={lookup} onChange={(e) => setLookup(e.target.value)}
+                placeholder={locale === "fr" ? "Code (ex: LIN-AB23CD)" : "Code (e.g. LIN-AB23CD)"}
+                className="flex-1 px-3 py-2 rounded-xl border-2 border-border bg-white text-[13px] font-mono focus:border-pink focus:outline-none" />
+              <button type="submit" className="btn-primary !py-2 !px-4 !text-[13px]"><Search size={13} />{locale === "fr" ? "Ouvrir" : "Open"}</button>
+            </form>
+            <p className="text-[11px] text-text-muted mt-2">
+              {locale === "fr" ? "Astuce : connecte-toi pour retrouver tes tickets automatiquement." : "Tip: sign in to find your tickets automatically."}
+            </p>
           </div>
         )}
-
-        <div className="mc-card p-5 mb-6">
-          <h2 className="text-[13px] font-bold text-text mb-2">{locale === "fr" ? "Retrouver un ticket" : "Find a ticket"}</h2>
-          <form onSubmit={(e) => { e.preventDefault(); if (lookup.trim()) router.push(`/${locale}/support/${lookup.trim().toUpperCase()}`); }}
-            className="flex gap-2">
-            <input value={lookup} onChange={(e) => setLookup(e.target.value)}
-              placeholder={locale === "fr" ? "Code (ex: LIN-AB23CD)" : "Code (e.g. LIN-AB23CD)"}
-              className="flex-1 px-3 py-2 rounded-xl border-2 border-border bg-white text-[13px] font-mono focus:border-pink focus:outline-none" />
-            <button type="submit" className="btn-primary !py-2 !px-4 !text-[13px]"><Search size={13} />{locale === "fr" ? "Ouvrir" : "Open"}</button>
-          </form>
-        </div>
 
         {step === "choose" ? (
           <div className="mc-card p-6">

@@ -292,24 +292,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
 
       case "player-profile": {
         const {
-          xuid, uuid, username, rank, prestige, money, kills, deaths, killstreak,
-          playtime, join_count, first_join, last_leave, jobs, timestamp,
-          server_id, server_name,
+          xuid, uuid, username, rank, rank_color, prestige, money, power, prime,
+          kills, deaths, killstreak, playtime, join_count, first_join, last_leave,
+          jobs, stats: statsSnapshot, faction, completed_quests, description,
+          lang, discord_id, timestamp, server_id, server_name,
         } = body;
         if (!xuid) return NextResponse.json({ error: "xuid required" }, { status: 400 });
         await upsertServer(db, server_id, server_name);
         const now = timestamp || Date.now();
         await run(db,
-          `INSERT INTO player_profile_extra (xuid, uuid, username, rank, prestige, money, kills, deaths, killstreak, playtime, join_count, first_join, last_leave, jobs, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          `INSERT INTO player_profile_extra (xuid, uuid, username, rank, rank_color, prestige, money, power, prime, kills, deaths, killstreak, playtime, join_count, first_join, last_leave, jobs, stats_json, faction_json, completed_quests, description, lang, discord_id, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
            ON CONFLICT(xuid) DO UPDATE SET
-             uuid=excluded.uuid, username=excluded.username, rank=excluded.rank, prestige=excluded.prestige,
-             money=excluded.money, kills=excluded.kills, deaths=excluded.deaths, killstreak=excluded.killstreak,
+             uuid=excluded.uuid, username=excluded.username, rank=excluded.rank, rank_color=excluded.rank_color,
+             prestige=excluded.prestige, money=excluded.money, power=excluded.power, prime=excluded.prime,
+             kills=excluded.kills, deaths=excluded.deaths, killstreak=excluded.killstreak,
              playtime=excluded.playtime, join_count=excluded.join_count, first_join=excluded.first_join,
-             last_leave=excluded.last_leave, jobs=excluded.jobs, updated_at=excluded.updated_at`,
-          [xuid, uuid || null, username || null, rank || null, prestige || 0, money || 0,
+             last_leave=excluded.last_leave, jobs=excluded.jobs, stats_json=excluded.stats_json,
+             faction_json=excluded.faction_json, completed_quests=excluded.completed_quests,
+             description=excluded.description, lang=excluded.lang, discord_id=excluded.discord_id,
+             updated_at=excluded.updated_at`,
+          [xuid, uuid || null, username || null, rank || null, rank_color || null,
+            prestige || 0, money || 0, power || 0, prime ?? null,
             kills || 0, deaths || 0, killstreak || 0, playtime || 0, join_count || 0,
-            first_join || null, last_leave || null, jobs ? JSON.stringify(jobs) : null, now]);
+            first_join || null, last_leave || null,
+            jobs ? JSON.stringify(jobs) : null,
+            statsSnapshot ? JSON.stringify(statsSnapshot) : null,
+            faction ? JSON.stringify(faction) : null,
+            completed_quests ? JSON.stringify(completed_quests) : null,
+            description || null, lang || null,
+            discord_id != null ? String(discord_id) : null,
+            now]);
         if (uuid) {
           await run(db, `UPDATE players SET xuid = ? WHERE uuid = ? AND (xuid IS NULL OR xuid = '')`, [xuid, uuid]);
         }

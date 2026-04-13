@@ -369,6 +369,26 @@ export async function getDb(): Promise<Client> {
       console.error("[db] players.xuid migration failed", e);
     }
 
+    // --- player_profile_extra: extended columns (idempotent) ---
+    try {
+      const cols = await getAll(db, "PRAGMA table_info(player_profile_extra)");
+      const names = new Set(cols.map((c) => c.name as string));
+      const addCol = async (n: string, type: string) => {
+        if (!names.has(n)) await run(db, `ALTER TABLE player_profile_extra ADD COLUMN ${n} ${type}`);
+      };
+      await addCol("rank_color", "TEXT");
+      await addCol("power", "REAL DEFAULT 0");
+      await addCol("prime", "INTEGER");
+      await addCol("description", "TEXT");
+      await addCol("lang", "TEXT");
+      await addCol("discord_id", "TEXT");
+      await addCol("completed_quests", "TEXT");
+      await addCol("stats_json", "TEXT");
+      await addCol("faction_json", "TEXT");
+    } catch (e) {
+      console.error("[db] player_profile_extra migration failed", e);
+    }
+
     // --- tickets: add account_id column (idempotent) ---
     try {
       const cols = await getAll(db, "PRAGMA table_info(tickets)");

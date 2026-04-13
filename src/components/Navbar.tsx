@@ -3,10 +3,11 @@
 import { useState, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { Link, usePathname, useRouter } from "@/i18n/routing";
-import { Menu, X, ChevronDown, User, LogIn, LogOut, Link2, Eye, LifeBuoy, Settings } from "lucide-react";
+import { Menu, X, ChevronDown, User, LogIn, LogOut, Eye, LifeBuoy, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface AccountSummary {
+  id: string;
   displayName: string | null;
   microsoftGamertag: string | null;
   linkedPlayerName: string | null;
@@ -144,16 +145,14 @@ export default function Navbar() {
                           <p className="text-[11px] text-text-muted truncate">{account.microsoftGamertag}</p>
                         )}
                       </div>
-                      {account.linkedPlayerUuid && (
-                        <Link
-                          href={`/leaderboard/${account.linkedPlayerUuid}` as never}
-                          onClick={() => setAccountOpen(false)}
-                          className="flex items-center gap-2 px-4 py-2.5 text-[13px] text-text hover:bg-bg-soft transition-colors"
-                        >
-                          <Eye size={13} className="text-pink" />
-                          {locale === "fr" ? "Profil public" : "Public profile"}
-                        </Link>
-                      )}
+                      <Link
+                        href={`/profile/${account.linkedPlayerUuid || account.id}` as never}
+                        onClick={() => setAccountOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-[13px] text-text hover:bg-bg-soft transition-colors"
+                      >
+                        <Eye size={13} className="text-pink" />
+                        {locale === "fr" ? "Profil public" : "Public profile"}
+                      </Link>
                       <Link
                         href={"/account" as never}
                         onClick={() => setAccountOpen(false)}
@@ -161,14 +160,6 @@ export default function Navbar() {
                       >
                         <Settings size={13} className="text-pink" />
                         {locale === "fr" ? "Gérer mon compte" : "Manage account"}
-                      </Link>
-                      <Link
-                        href={"/account" as never}
-                        onClick={() => setAccountOpen(false)}
-                        className="flex items-center gap-2 px-4 py-2.5 text-[13px] text-text hover:bg-bg-soft transition-colors"
-                      >
-                        <Link2 size={13} className="text-pink" />
-                        {locale === "fr" ? "Lier Discord / pseudo" : "Link Discord / name"}
                       </Link>
                       <Link
                         href={"/support" as never}
@@ -236,12 +227,10 @@ export default function Navbar() {
                 <div className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
                   {account.linkedPlayerName || account.microsoftGamertag || (locale === "fr" ? "Mon compte" : "Account")}
                 </div>
-                {account.linkedPlayerUuid && (
-                  <Link href={`/leaderboard/${account.linkedPlayerUuid}` as never} onClick={() => setMobileOpen(false)}
-                    className="flex items-center gap-2 px-4 py-3 rounded-xl text-[14px] font-medium text-text-sub">
-                    <Eye size={14} />{locale === "fr" ? "Profil public" : "Public profile"}
-                  </Link>
-                )}
+                <Link href={`/profile/${account.linkedPlayerUuid || account.id}` as never} onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl text-[14px] font-medium text-text-sub">
+                  <Eye size={14} />{locale === "fr" ? "Profil public" : "Public profile"}
+                </Link>
                 <Link href={"/account" as never} onClick={() => setMobileOpen(false)}
                   className="flex items-center gap-2 px-4 py-3 rounded-xl text-[14px] font-medium text-text-sub">
                   <Settings size={14} />{locale === "fr" ? "Gérer mon compte" : "Manage account"}
