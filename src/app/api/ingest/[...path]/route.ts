@@ -289,6 +289,60 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
         return NextResponse.json({ success: true, count: entries.length });
       }
 
+      case "player-profile": {
+        const {
+          xuid, uuid, username, rank, prestige, money, kills, deaths, killstreak,
+          playtime, join_count, first_join, last_leave, jobs, timestamp,
+          server_id, server_name,
+        } = body;
+        if (!xuid) return NextResponse.json({ error: "xuid required" }, { status: 400 });
+        await upsertServer(db, server_id, server_name);
+        const now = timestamp || Date.now();
+        await run(db,
+          `INSERT INTO player_profile_extra (xuid, uuid, username, rank, prestige, money, kills, deaths, killstreak, playtime, join_count, first_join, last_leave, jobs, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+           ON CONFLICT(xuid) DO UPDATE SET
+             uuid=excluded.uuid, username=excluded.username, rank=excluded.rank, prestige=excluded.prestige,
+             money=excluded.money, kills=excluded.kills, deaths=excluded.deaths, killstreak=excluded.killstreak,
+             playtime=excluded.playtime, join_count=excluded.join_count, first_join=excluded.first_join,
+             last_leave=excluded.last_leave, jobs=excluded.jobs, updated_at=excluded.updated_at`,
+          [xuid, uuid || null, username || null, rank || null, prestige || 0, money || 0,
+            kills || 0, deaths || 0, killstreak || 0, playtime || 0, join_count || 0,
+            first_join || null, last_leave || null, jobs ? JSON.stringify(jobs) : null, now]);
+        if (uuid) {
+          await run(db, `UPDATE players SET xuid = ? WHERE uuid = ? AND (xuid IS NULL OR xuid = '')`, [xuid, uuid]);
+        }
+        return NextResponse.json({ success: true });
+      }
+
+      case "cosmetics": {
+        const { xuid, uuid, cosmetics: list, timestamp, server_id, server_name } = body;
+        if (!xuid || !Array.isArray(list)) {
+          return NextResponse.json({ error: "xuid and cosmetics array required" }, { status: 400 });
+        }
+        await upsertServer(db, server_id, server_name);
+        const now = timestamp || Date.now();
+        const stmts: Array<{ sql: string; args: unknown[] }> = [
+          { sql: `DELETE FROM player_cosmetics WHERE xuid = ?`, args: [xuid] },
+        ];
+        for (const c of list) {
+          if (!c?.full_id) continue;
+          stmts.push({
+            sql: `INSERT INTO player_cosmetics (xuid, full_id, type, identifier, name, active, updated_at)
+                  VALUES (?,?,?,?,?,?,?)`,
+            args: [xuid, c.full_id, c.type || "", c.id || c.identifier || "", c.name || null, c.active ? 1 : 0, now],
+          });
+        }
+        if (uuid) {
+          stmts.push({
+            sql: `UPDATE players SET xuid = ? WHERE uuid = ? AND (xuid IS NULL OR xuid = '')`,
+            args: [xuid, uuid],
+          });
+        }
+        await db.batch(stmts.map((s) => ({ sql: s.sql, args: s.args as never[] })));
+        return NextResponse.json({ success: true, count: list.length });
+      }
+
       default:
         return NextResponse.json({ error: "Not found" }, { status: 404 });
     }

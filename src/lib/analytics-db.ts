@@ -300,7 +300,48 @@ export async function getDb(): Promise<Client> {
       )`,
       `CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket ON ticket_messages(ticket_id)`,
       `CREATE INDEX IF NOT EXISTS idx_ticket_messages_created ON ticket_messages(created_at)`,
+      `CREATE TABLE IF NOT EXISTS player_profile_extra (
+        xuid TEXT PRIMARY KEY,
+        uuid TEXT,
+        username TEXT,
+        rank TEXT,
+        prestige INTEGER DEFAULT 0,
+        money REAL DEFAULT 0,
+        kills INTEGER DEFAULT 0,
+        deaths INTEGER DEFAULT 0,
+        killstreak INTEGER DEFAULT 0,
+        playtime INTEGER DEFAULT 0,
+        join_count INTEGER DEFAULT 0,
+        first_join TEXT,
+        last_leave TEXT,
+        jobs TEXT,
+        updated_at INTEGER NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_profile_extra_uuid ON player_profile_extra(uuid)`,
+      `CREATE TABLE IF NOT EXISTS player_cosmetics (
+        xuid TEXT NOT NULL,
+        full_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        identifier TEXT NOT NULL,
+        name TEXT,
+        active INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (xuid, full_id)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_player_cosmetics_xuid ON player_cosmetics(xuid)`,
     ]);
+
+    // --- players table: add xuid column (idempotent) ---
+    try {
+      const cols = await getAll(db, "PRAGMA table_info(players)");
+      const names = new Set(cols.map((c) => c.name as string));
+      if (!names.has("xuid")) {
+        await run(db, "ALTER TABLE players ADD COLUMN xuid TEXT");
+        await run(db, "CREATE INDEX IF NOT EXISTS idx_players_xuid ON players(xuid)");
+      }
+    } catch (e) {
+      console.error("[db] players.xuid migration failed", e);
+    }
 
     // --- Staff users schema migration (idempotent) ---
     // Adds Microsoft columns + relaxes NOT NULL on discord_* if a legacy

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { LifeBuoy, Send, Search, ShoppingBag, RefreshCcw, Shield, Flag, HelpCircle } from "lucide-react";
@@ -26,6 +26,14 @@ export default function SupportPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [lookup, setLookup] = useState("");
+
+  useEffect(() => {
+    fetch("/api/account/me").then((r) => r.json()).then((j) => {
+      if (j.account) {
+        setPlayerName(j.account.linkedPlayerName || j.account.microsoftGamertag || "");
+      }
+    }).catch(() => {});
+  }, []);
 
   const submit = async () => {
     setError("");
