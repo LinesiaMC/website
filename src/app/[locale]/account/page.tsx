@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { User, LogIn, LogOut, Link as LinkIcon, Unlink, Check, Copy, Clock, Coins, Skull, Dice5, Users as UsersIcon, Activity } from "lucide-react";
@@ -34,6 +34,20 @@ function fmtDur(ms: number): string {
 }
 
 export default function AccountPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-bg-soft pt-[110px] px-4">
+        <div className="max-w-[640px] mx-auto mc-card p-12 text-center">
+          <Activity size={24} className="text-pink mx-auto animate-pulse" />
+        </div>
+      </div>
+    }>
+      <AccountPageInner />
+    </Suspense>
+  );
+}
+
+function AccountPageInner() {
   const { locale } = useParams<{ locale: string }>();
   const sp = useSearchParams();
   const authError = sp.get("auth_error");
