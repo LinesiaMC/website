@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, ReactNode } from "react";
-import { useParams, usePathname, useSearchParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -58,11 +58,15 @@ const NAV_LABELS: Record<string, { fr: string; en: string }> = {
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { locale } = useParams<{ locale: string }>();
   const pathname = usePathname();
-  const search = useSearchParams();
   const [staff, setStaff] = useState<CurrentStaff | null>(null);
   const [ready, setReady] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const authError = search.get("auth_error");
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setAuthError(params.get("auth_error"));
+  }, []);
 
   useEffect(() => {
     (async () => {

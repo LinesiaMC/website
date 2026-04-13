@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import Image from "next/image";
 import { UserCircle2, Link as LinkIcon, Unlink, CheckCircle2, AlertCircle, Gamepad2 } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
@@ -23,12 +23,16 @@ interface FullStaff {
 
 export default function ProfilePage() {
   const { locale } = useParams<{ locale: string }>();
-  const search = useSearchParams();
   const { staff: me } = useAdmin();
   const [data, setData] = useState<FullStaff | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
-  const authError = search.get("auth_error");
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setAuthError(params.get("auth_error"));
+  }, []);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/auth/me", { cache: "no-store" });
