@@ -14,7 +14,7 @@ import { getDb, getAll, getOne } from "@/lib/analytics-db";
  *  - limit, offset
  */
 export async function GET(req: NextRequest) {
-  const auth = await requirePermission(req, "community.view");
+  const auth = await requirePermission(req, "analytics.view");
   if (!isStaffUser(auth)) return auth;
 
   const url = req.nextUrl;

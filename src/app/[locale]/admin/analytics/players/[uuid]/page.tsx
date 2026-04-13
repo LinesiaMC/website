@@ -2,14 +2,17 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Activity, Clock, Terminal, Globe, Skull, MessageSquare, ShieldAlert, Users } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft, Activity, Clock, Terminal, Globe, Skull, MessageSquare, ShieldAlert, Users, Gamepad2, Link2Off, ShieldCheck, Sparkles, Coins, Briefcase, Crown } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDuration, formatDate } from "@/components/admin/AnalyticsAPI";
 import { useAutoRefresh } from "@/lib/useAutoRefresh";
+import { INGAME_RANK_LABELS, IngameRank, ROLE_LABELS, ROLE_COLORS, StaffRole } from "@/lib/roles";
 
 interface PlayerDetail {
   player: {
     uuid: string;
+    xuid?: string | null;
     username: string;
     platform: string;
     first_seen: number;
@@ -26,6 +29,37 @@ interface PlayerDetail {
   worldStats: { world_name: string; total_time: number; visits: number }[];
   sanctions: { id: number; type: string; reason: string; staff: string; duration: string; timestamp: number }[];
   aliases: { alias_uuid: string; alias_name: string; alias_xuid: string; match_via: string; updated_at: number }[];
+  profileExtra: null | {
+    rank: string | null;
+    prestige: number;
+    money: number;
+    kills: number;
+    deaths: number;
+    killstreak: number;
+    jobs: string | null;
+    join_count: number;
+    first_join: string | null;
+    last_leave: string | null;
+  };
+  cosmetics: { type: string; identifier: string; name: string | null; active: number }[];
+  account: null | {
+    id: string;
+    microsoft_id: string | null;
+    microsoft_gamertag: string | null;
+    microsoft_display_name: string | null;
+    created_at: number;
+    last_login: number | null;
+  };
+  staff: null | {
+    id: string;
+    role: StaffRole;
+    source: "manual" | "ingame";
+    discord_id: string | null;
+    discord_username: string | null;
+    discord_avatar: string | null;
+    microsoft_gamertag: string | null;
+    display_name: string | null;
+  };
 }
 
 export default function PlayerDetailPage() {
@@ -62,7 +96,24 @@ export default function PlayerDetailPage() {
     );
   }
 
-  const { player } = data;
+  const { player, profileExtra, cosmetics, account, staff } = data;
+  const rankInfo = profileExtra?.rank ? INGAME_RANK_LABELS[profileExtra.rank.toLowerCase() as IngameRank] : null;
+  const jobs = (() => {
+    if (!profileExtra?.jobs) return [] as { name: string; level?: number }[];
+    try {
+      const parsed = JSON.parse(profileExtra.jobs);
+      if (Array.isArray(parsed)) return parsed.map((j) => typeof j === "string" ? { name: j } : j);
+      if (parsed && typeof parsed === "object") {
+        return Object.entries(parsed).map(([name, v]) => ({ name, level: typeof v === "number" ? v : (v as { level?: number })?.level }));
+      }
+    } catch { /* ignore */ }
+    return profileExtra.jobs.split(",").map((s) => ({ name: s.trim() })).filter((j) => j.name);
+  })();
+  const activeCosmetics = cosmetics?.filter((c) => c.active) ?? [];
+  const ownedCosmetics = cosmetics?.filter((c) => !c.active) ?? [];
+  const discordAvatarUrl = staff?.discord_id && staff.discord_avatar
+    ? `https://cdn.discordapp.com/avatars/${staff.discord_id}/${staff.discord_avatar}.png?size=64`
+    : null;
 
   const tabs = [
     { key: "sessions" as const, label: "Sessions", icon: Clock, count: data.sessions.length },
@@ -85,12 +136,34 @@ export default function PlayerDetailPage() {
 
       {/* Header */}
       <div className="mc-card p-6 mb-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-xl font-bold text-text">{player.username}</h1>
-            <p className="text-[12px] text-text-muted font-mono mt-1">{player.uuid}</p>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <h1 className="text-xl font-bold text-text">{player.username}</h1>
+              {rankInfo && (
+                <span
+                  className="text-[11px] font-bold px-2 py-0.5 rounded uppercase tracking-wider"
+                  style={{ color: rankInfo.color, backgroundColor: rankInfo.color + "1A" }}
+                >
+                  {rankInfo.fr}
+                </span>
+              )}
+              {staff && (
+                <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${ROLE_COLORS[staff.role].bg} ${ROLE_COLORS[staff.role].text}`}>
+                  <ShieldCheck size={11} />{ROLE_LABELS[staff.role].fr}
+                  {staff.source === "ingame" && <span className="opacity-60 normal-case ml-0.5">·sync</span>}
+                </span>
+              )}
+              {profileExtra && profileExtra.prestige > 0 && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-pink/10 text-pink">
+                  <Crown size={11} />P{profileExtra.prestige}
+                </span>
+              )}
+            </div>
+            <p className="text-[12px] text-text-muted font-mono">{player.uuid}</p>
+            {player.xuid && <p className="text-[11px] text-text-muted font-mono">xuid: {player.xuid}</p>}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {data.sanctions.length > 0 && (
               <span className="px-3 py-1 rounded-lg bg-red-500/10 text-red-500 text-[12px] font-semibold flex items-center gap-1.5">
                 <ShieldAlert size={13} />
@@ -127,6 +200,135 @@ export default function PlayerDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Identities */}
+      <div className="mc-card p-5 mb-6">
+        <h3 className="text-[14px] font-semibold text-text mb-3">{locale === "fr" ? "Identités liées" : "Linked identities"}</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="flex items-start gap-3 p-3 rounded-xl border border-border bg-bg-soft/40">
+            <div className="w-9 h-9 rounded-lg bg-pink/10 text-pink flex items-center justify-center shrink-0">
+              <Users size={16} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-text-muted uppercase">In-game</p>
+              <p className="text-[13px] font-semibold text-text truncate">{player.username}</p>
+              <p className="text-[11px] text-text-muted">{player.platform}</p>
+            </div>
+          </div>
+
+          <div className={`flex items-start gap-3 p-3 rounded-xl border ${account ? "border-blue-200 bg-blue-50/50" : "border-border bg-bg-soft/40"}`}>
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${account ? "bg-[#00A4EF]/10 text-[#00A4EF]" : "bg-bg-soft text-text-muted"}`}>
+              {account ? <Gamepad2 size={16} /> : <Link2Off size={16} />}
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-text-muted uppercase">Microsoft</p>
+              {account ? (
+                <>
+                  <p className="text-[13px] font-semibold text-text truncate">{account.microsoft_gamertag || account.microsoft_display_name || "—"}</p>
+                  <p className="text-[11px] text-text-muted">{locale === "fr" ? "Lié le" : "Linked"} {formatDate(account.created_at)}</p>
+                </>
+              ) : (
+                <p className="text-[12px] text-text-muted">{locale === "fr" ? "Non lié" : "Not linked"}</p>
+              )}
+            </div>
+          </div>
+
+          <div className={`flex items-start gap-3 p-3 rounded-xl border ${staff?.discord_id ? "border-indigo-200 bg-indigo-50/50" : "border-border bg-bg-soft/40"}`}>
+            {discordAvatarUrl ? (
+              <Image src={discordAvatarUrl} alt="" width={36} height={36} className="w-9 h-9 rounded-lg shrink-0" unoptimized />
+            ) : (
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${staff?.discord_id ? "bg-indigo-500/10 text-indigo-600" : "bg-bg-soft text-text-muted"}`}>
+                {staff?.discord_id ? <ShieldCheck size={16} /> : <Link2Off size={16} />}
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-text-muted uppercase">Discord</p>
+              {staff?.discord_id ? (
+                <>
+                  <p className="text-[13px] font-semibold text-text truncate">{staff.discord_username || staff.display_name || "—"}</p>
+                  <p className="text-[11px] text-text-muted">{locale === "fr" ? "via staff" : "via staff"}</p>
+                </>
+              ) : (
+                <p className="text-[12px] text-text-muted">{locale === "fr" ? "Non lié" : "Not linked"}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* In-game profile */}
+      {profileExtra && (
+        <div className="mc-card p-5 mb-6">
+          <h3 className="text-[14px] font-semibold text-text mb-3">{locale === "fr" ? "Profil en jeu" : "In-game profile"}</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div>
+              <p className="text-[11px] text-text-muted uppercase flex items-center gap-1"><Coins size={11} />{locale === "fr" ? "Argent" : "Money"}</p>
+              <p className="text-[16px] font-bold text-text">{(profileExtra.money ?? 0).toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-text-muted uppercase">Kills / Deaths</p>
+              <p className="text-[16px] font-bold text-text">{profileExtra.kills} / {profileExtra.deaths}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-text-muted uppercase">Killstreak</p>
+              <p className="text-[16px] font-bold text-text">{profileExtra.killstreak ?? 0}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-text-muted uppercase">Prestige</p>
+              <p className="text-[16px] font-bold text-text">{profileExtra.prestige ?? 0}</p>
+            </div>
+          </div>
+          {jobs.length > 0 && (
+            <div>
+              <p className="text-[11px] text-text-muted uppercase flex items-center gap-1 mb-2"><Briefcase size={11} />Jobs</p>
+              <div className="flex flex-wrap gap-2">
+                {jobs.map((j, i) => (
+                  <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet/10 text-violet text-[12px] font-semibold">
+                    {j.name}{j.level != null && <span className="opacity-70">Lv.{j.level}</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Cosmetics */}
+      {(activeCosmetics.length > 0 || ownedCosmetics.length > 0) && (
+        <div className="mc-card p-5 mb-6">
+          <h3 className="text-[14px] font-semibold text-text mb-3 flex items-center gap-2">
+            <Sparkles size={14} className="text-pink" />
+            {locale === "fr" ? "Cosmétiques" : "Cosmetics"}
+            <span className="text-[11px] text-text-muted font-normal">
+              {activeCosmetics.length} {locale === "fr" ? "actifs" : "active"} · {ownedCosmetics.length} {locale === "fr" ? "possédés" : "owned"}
+            </span>
+          </h3>
+          {activeCosmetics.length > 0 && (
+            <div className="mb-3">
+              <p className="text-[11px] font-bold text-text-muted uppercase mb-2">{locale === "fr" ? "Actifs" : "Active"}</p>
+              <div className="flex flex-wrap gap-2">
+                {activeCosmetics.map((c, i) => (
+                  <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-pink/10 text-pink text-[12px] font-semibold">
+                    <span className="opacity-60">{c.type}</span>·{c.name || c.identifier}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {ownedCosmetics.length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold text-text-muted uppercase mb-2">{locale === "fr" ? "Possédés" : "Owned"}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {ownedCosmetics.map((c, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-bg-soft text-text-sub text-[11px]">
+                    <span className="opacity-60">{c.type}</span>·{c.name || c.identifier}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Stats cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

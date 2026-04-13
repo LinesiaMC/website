@@ -1115,6 +1115,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
               const [
                 aliases, sessions, commands, worlds, deaths, messages,
                 commandStats, worldStats, casinoStats, casinoHistory, sanctions,
+                profileExtra, cosmetics, account, staff,
               ] = await Promise.all([
                 getAll(
                   db,
@@ -1140,11 +1141,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
                 getOne(db, `SELECT COUNT(*) as total_bets, COALESCE(SUM(bet_amount),0) as total_bet, COALESCE(SUM(win_amount),0) as total_won, COALESCE(SUM(net_result),0) as net FROM casino_transactions WHERE player_uuid = ? ${sWhere}`, [uuid, ...sf.params]),
                 getAll(db, `SELECT * FROM casino_transactions WHERE player_uuid = ? ${sWhere} ORDER BY timestamp DESC LIMIT 50`, [uuid, ...sf.params]),
                 getAll(db, `SELECT * FROM sanctions WHERE player_uuid = ? ORDER BY timestamp DESC`, [uuid]),
+                getOne(db, `SELECT rank, prestige, money, kills, deaths, killstreak, jobs, join_count, first_join, last_leave, updated_at FROM player_profile_extra WHERE uuid = ? OR xuid = ? LIMIT 1`, [uuid, (player as Record<string, unknown>).xuid ?? ""]),
+                getAll(db, `SELECT type, identifier, name, active FROM player_cosmetics WHERE xuid = ? ORDER BY active DESC, type, name`, [(player as Record<string, unknown>).xuid ?? ""]),
+                getOne(db, `SELECT id, microsoft_id, microsoft_gamertag, microsoft_display_name, display_name, created_at, last_login FROM player_accounts WHERE linked_player_uuid = ? OR linked_player_uuid = ? LIMIT 1`, [uuid, (player as Record<string, unknown>).xuid ?? ""]),
+                getOne(db, `SELECT id, role, source, discord_id, discord_username, discord_avatar, microsoft_gamertag, display_name FROM staff_users WHERE linked_xuid = ? OR microsoft_id = ? LIMIT 1`, [(player as Record<string, unknown>).xuid ?? "", (player as Record<string, unknown>).xuid ?? ""]),
               ]);
 
               return {
                 player, sessions, commands, worlds, deaths, messages,
                 commandStats, worldStats, casinoStats, casinoHistory, sanctions, aliases,
+                profileExtra, cosmetics, account, staff,
               };
           });
           const maybeErr = result as unknown as { __status?: number; error?: string };

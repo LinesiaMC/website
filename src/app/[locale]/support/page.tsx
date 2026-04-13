@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { LifeBuoy, Send, Search, ShoppingBag, RefreshCcw, Shield, Flag, HelpCircle } from "lucide-react";
-import { CATEGORY_LABELS, TicketCategory } from "@/lib/tickets";
+import { LifeBuoy, Send, Search, ShoppingBag, RefreshCcw, Shield, Flag, HelpCircle, Inbox, ChevronRight } from "lucide-react";
+import { CATEGORY_LABELS, TicketCategory, TicketStatus } from "@/lib/tickets";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -14,6 +14,11 @@ const PUBLIC_CATEGORIES: { key: TicketCategory; icon: typeof ShoppingBag; desc: 
   { key: "report",   icon: Flag,        desc: { fr: "Signaler un joueur ou un bug",      en: "Report a player or bug" } },
   { key: "other",    icon: HelpCircle,  desc: { fr: "Autre demande",                     en: "Other request" } },
 ];
+
+interface MyTicket {
+  id: string; code: string; subject: string; category: TicketCategory;
+  status: TicketStatus; createdAt: number; updatedAt: number;
+}
 
 export default function SupportPage() {
   const { locale } = useParams<{ locale: string }>();
@@ -28,11 +33,17 @@ export default function SupportPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [lookup, setLookup] = useState("");
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [myTickets, setMyTickets] = useState<MyTicket[] | null>(null);
 
   useEffect(() => {
     fetch("/api/account/me").then((r) => r.json()).then((j) => {
       if (j.account) {
+        setLoggedIn(true);
         setPlayerName(j.account.linkedPlayerName || j.account.microsoftGamertag || "");
+        fetch("/api/account/tickets").then((r) => r.ok ? r.json() : []).then((list) => {
+          setMyTickets(Array.isArray(list) ? list : []);
+        }).catch(() => setMyTickets([]));
       }
     }).catch(() => {});
   }, []);
@@ -75,6 +86,34 @@ export default function SupportPage() {
             {locale === "fr" ? "Une question ? Un problème ? Ouvre un ticket, le staff répond." : "A question or problem? Open a ticket and our staff will help."}
           </p>
         </div>
+
+        {loggedIn && myTickets && myTickets.length > 0 && (
+          <div className="mc-card p-5 mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Inbox size={14} className="text-pink" />
+              <h2 className="text-[13px] font-bold text-text">{locale === "fr" ? "Mes tickets" : "My tickets"}</h2>
+              <span className="text-[11px] text-text-muted">({myTickets.length})</span>
+            </div>
+            <ul className="space-y-1.5">
+              {myTickets.map((t) => (
+                <li key={t.id}>
+                  <Link href={`/${locale}/support/${t.code}`}
+                    className="flex items-center gap-2 p-2.5 rounded-lg border border-border hover:border-pink hover:bg-pink/5 transition-colors">
+                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                      t.status === "open" ? "bg-blue-50 text-blue-600" :
+                      t.status === "pending" ? "bg-orange-50 text-orange-600" :
+                      "bg-gray-100 text-gray-600"
+                    }`}>{t.status}</span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-50 text-violet-600">{CATEGORY_LABELS[t.category].fr}</span>
+                    <span className="text-[13px] text-text truncate flex-1">{t.subject}</span>
+                    <span className="text-[10px] font-mono text-text-muted">{t.code}</span>
+                    <ChevronRight size={13} className="text-text-muted" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="mc-card p-5 mb-6">
           <h2 className="text-[13px] font-bold text-text mb-2">{locale === "fr" ? "Retrouver un ticket" : "Find a ticket"}</h2>

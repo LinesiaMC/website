@@ -8,7 +8,7 @@ import {
   Lock, LogOut, Newspaper, BarChart3, Users, TrendingUp,
   Globe, ScrollText, ChevronLeft, ChevronRight, LayoutDashboard,
   Coins, Dices, Gem, Box, Shield, MessageSquare, Fingerprint, BookOpen,
-  UserCog, LifeBuoy, UserCircle2, Map,
+  LifeBuoy, UserCircle2, Map,
 } from "lucide-react";
 import { AdminContext, CurrentStaff } from "@/components/admin/AdminContext";
 import { hasPermission, Permission, ROLE_LABELS, ROLE_COLORS } from "@/lib/roles";
@@ -19,9 +19,7 @@ const NAV_ITEMS: { key: string; icon: typeof Newspaper; path: string; perm: Perm
   { key: "wiki",       icon: BookOpen,        path: "/admin/wiki",                      perm: "wiki.manage" },
   { key: "roadmap",    icon: Map,             path: "/admin/roadmap",                   perm: "roadmap.manage" },
   { key: "tickets",    icon: LifeBuoy,        path: "/admin/tickets",                   perm: "tickets.view" },
-  { key: "staffMgr",   icon: UserCog,         path: "/admin/staff",                     perm: "staff.manage" },
   { key: "rolesMgr",   icon: Shield,          path: "/admin/roles",                     perm: "permissions.manage" },
-  { key: "community",  icon: Users,           path: "/admin/community",                 perm: "community.view" },
   { key: "dashboard",  icon: LayoutDashboard, path: "/admin/analytics",                 perm: "analytics.view" },
   { key: "players",    icon: Users,           path: "/admin/analytics/players",         perm: "analytics.view" },
   { key: "retention",  icon: TrendingUp,      path: "/admin/analytics/retention",       perm: "analytics.view" },
@@ -42,9 +40,7 @@ const NAV_LABELS: Record<string, { fr: string; en: string }> = {
   wiki: { fr: "Wiki", en: "Wiki" },
   roadmap: { fr: "Roadmap", en: "Roadmap" },
   tickets: { fr: "Tickets", en: "Tickets" },
-  staffMgr: { fr: "Gestion Staff", en: "Staff Management" },
   rolesMgr: { fr: "Permissions", en: "Permissions" },
-  community: { fr: "Communauté", en: "Community" },
   dashboard: { fr: "Dashboard", en: "Dashboard" },
   players: { fr: "Joueurs", en: "Players" },
   retention: { fr: "Rétention", en: "Retention" },

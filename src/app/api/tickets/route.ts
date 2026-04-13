@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createTicket, listTickets, addMessage, getTicketByCode, getMessages, TICKET_CATEGORIES, TicketCategory, TicketStatus } from "@/lib/tickets";
 import { getCurrentStaff } from "@/lib/auth";
+import { getCurrentAccount } from "@/lib/player-auth";
 import { hasPermission } from "@/lib/roles";
 
 export async function GET(req: NextRequest) {
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
   if (playerName.length > 60 || subject.length > 120 || reason.length > 4000) {
     return NextResponse.json({ error: "Contenu trop long" }, { status: 400 });
   }
+  const account = await getCurrentAccount(req);
   const ticket = await createTicket({
     playerName: playerName.trim(),
     contact: contact?.trim() || null,
@@ -50,6 +52,7 @@ export async function POST(req: NextRequest) {
     subject: subject.trim(),
     reason: reason.trim(),
     proof: proof?.trim() || null,
+    accountId: account?.id ?? null,
   });
   await addMessage({
     ticketId: ticket.id,

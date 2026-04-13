@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addMessage, getTicketById, getTicketByCode, getMessages } from "@/lib/tickets";
 import { getCurrentStaff } from "@/lib/auth";
+import { getCurrentAccount } from "@/lib/player-auth";
 import { hasPermission, ROLE_LABELS } from "@/lib/roles";
 
-// Staff reply (authenticated)
+// Resolves a ticket by id OR code (URL segment can be either).
+async function resolveTicket(idOrCode: string) {
+  return (await getTicketById(idOrCode)) || (await getTicketByCode(idOrCode));
+}
+
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const body = await req.json() as { content?: string; isInternal?: boolean; playerCode?: string; playerName?: string };
@@ -17,13 +22,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!hasPermission(staff.role, "tickets.respond")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    const ticket = await getTicketById(id);
+    const ticket = await resolveTicket(id);
     if (!ticket) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (ticket.category === "admin" && !hasPermission(staff.role, "tickets.admin_category")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const msg = await addMessage({
-      ticketId: id,
+      ticketId: ticket.id,
       authorType: "staff",
       authorName: (staff.displayName || staff.discordUsername || staff.microsoftGamertag || "staff"),
       authorRole: ROLE_LABELS[staff.role].fr,
@@ -33,17 +38,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json(msg, { status: 201 });
   }
 
-  // Player path: identify via code in body (id param is treated as ticket code here)
+  // Player path: accept either URL code, body.playerCode, or authenticated account
+  const account = await getCurrentAccount(req);
   const code = body.playerCode || id;
-  const ticket = await getTicketByCode(code);
+  const ticket = await resolveTicket(code);
   if (!ticket) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (ticket.status === "closed") {
     return NextResponse.json({ error: "Ticket fermé" }, { status: 400 });
   }
+  // If the ticket is tied to an account, only its owner (or anonymous via code match) can reply.
+  if (ticket.accountId && account && ticket.accountId !== account.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const authorName = account
+    ? (account.linkedPlayerName || account.microsoftGamertag || account.discordUsername || ticket.playerName)
+    : ticket.playerName;
   const msg = await addMessage({
     ticketId: ticket.id,
     authorType: "player",
-    authorName: ticket.playerName,
+    authorName,
     content,
   });
   return NextResponse.json(msg, { status: 201 });

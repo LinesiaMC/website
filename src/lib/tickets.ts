@@ -31,6 +31,7 @@ export interface Ticket {
   closedBy: string | null;
   closeReason: string | null;
   closeSummary: string | null;
+  accountId: string | null;
 }
 
 export interface TicketMessage {
@@ -62,6 +63,7 @@ function rowToTicket(row: Record<string, unknown>): Ticket {
     closedBy: (row.closed_by as string) || null,
     closeReason: (row.close_reason as string) || null,
     closeSummary: (row.close_summary as string) || null,
+    accountId: (row.account_id as string) || null,
   };
 }
 
@@ -94,6 +96,7 @@ export async function createTicket(data: {
   subject: string;
   reason: string;
   proof?: string | null;
+  accountId?: string | null;
 }): Promise<Ticket> {
   const db = await getDb();
   const id = Date.now().toString(36) + randomBytes(3).toString("hex");
@@ -105,15 +108,26 @@ export async function createTicket(data: {
     code = generateCode();
   }
   await run(db,
-    `INSERT INTO tickets (id, code, player_name, contact, category, subject, reason, proof, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)`,
-    [id, code, data.playerName, data.contact ?? null, data.category, data.subject, data.reason, data.proof ?? null, now, now],
+    `INSERT INTO tickets (id, code, player_name, contact, category, subject, reason, proof, status, created_at, updated_at, account_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
+    [id, code, data.playerName, data.contact ?? null, data.category, data.subject, data.reason, data.proof ?? null, now, now, data.accountId ?? null],
   );
   return {
     id, code, playerName: data.playerName, contact: data.contact ?? null, category: data.category,
     subject: data.subject, reason: data.reason, proof: data.proof ?? null, status: "open",
     assignedTo: null, createdAt: now, updatedAt: now, closedAt: null, closedBy: null, closeReason: null, closeSummary: null,
+    accountId: data.accountId ?? null,
   };
+}
+
+export async function listTicketsByAccount(accountId: string): Promise<Ticket[]> {
+  const db = await getDb();
+  const rows = await getAll(db,
+    `SELECT * FROM tickets WHERE account_id = ? ORDER BY
+      CASE status WHEN 'open' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+      updated_at DESC LIMIT 100`,
+    [accountId]);
+  return rows.map(rowToTicket);
 }
 
 export async function getTicketById(id: string): Promise<Ticket | null> {

@@ -28,7 +28,7 @@ export default function Navbar() {
   const navLinks = [
     { href: "/" as const, label: t("home") },
     { href: "/news" as const, label: t("news") },
-    { href: "/leaderboard" as const, label: locale === "fr" ? "Classement" : "Leaderboard" },
+    { href: "/leaderboard" as const, label: "Tracker" },
     { href: "/wiki" as const, label: t("wiki") },
     { href: "/support" as const, label: locale === "fr" ? "Support" : "Support" },
   ];

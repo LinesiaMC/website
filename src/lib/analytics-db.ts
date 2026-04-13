@@ -281,7 +281,8 @@ export async function getDb(): Promise<Client> {
         closed_at INTEGER,
         closed_by TEXT,
         close_reason TEXT,
-        close_summary TEXT
+        close_summary TEXT,
+        account_id TEXT
       )`,
       `CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)`,
       `CREATE INDEX IF NOT EXISTS idx_tickets_category ON tickets(category)`,
@@ -376,6 +377,18 @@ export async function getDb(): Promise<Client> {
       }
     } catch (e) {
       console.error("[db] players.xuid migration failed", e);
+    }
+
+    // --- tickets: add account_id column (idempotent) ---
+    try {
+      const cols = await getAll(db, "PRAGMA table_info(tickets)");
+      const names = new Set(cols.map((c) => c.name as string));
+      if (!names.has("account_id")) {
+        await run(db, "ALTER TABLE tickets ADD COLUMN account_id TEXT");
+        await run(db, "CREATE INDEX IF NOT EXISTS idx_tickets_account ON tickets(account_id)");
+      }
+    } catch (e) {
+      console.error("[db] tickets.account_id migration failed", e);
     }
 
     // --- Staff users schema migration (idempotent) ---
