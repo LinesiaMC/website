@@ -52,7 +52,7 @@ export default function Footer() {
             <ul className="space-y-2">
               <li><a href="https://discord.gg/linesia" target="_blank" rel="noopener noreferrer" className="text-[13px] text-text-sub hover:text-text transition-colors">Discord</a></li>
               <li><a href="https://linesia.tebex.io/" target="_blank" rel="noopener noreferrer" className="text-[13px] text-text-sub hover:text-text transition-colors">Tebex</a></li>
-              <li><a href="/fr/support" className="text-[13px] text-text-sub hover:text-text transition-colors">Support</a></li>
+              <li><Link href="/support" className="text-[13px] text-text-sub hover:text-text transition-colors">Support</Link></li>
               <li><a href="mailto:support@linesia.net" className="text-[13px] text-text-sub hover:text-text transition-colors">Contact</a></li>
             </ul>
           </div>
