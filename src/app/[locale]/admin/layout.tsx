@@ -8,7 +8,7 @@ import {
   Lock, LogOut, Newspaper, BarChart3, Users, TrendingUp,
   Globe, ScrollText, ChevronLeft, ChevronRight, LayoutDashboard,
   Coins, Dices, Gem, Box, Shield, MessageSquare, Fingerprint, BookOpen,
-  UserCog, LifeBuoy, UserCircle2,
+  UserCog, LifeBuoy, UserCircle2, Map,
 } from "lucide-react";
 import { AdminContext, CurrentStaff } from "@/components/admin/AdminContext";
 import { hasPermission, Permission, ROLE_LABELS, ROLE_COLORS } from "@/lib/roles";
@@ -17,6 +17,7 @@ const NAV_ITEMS: { key: string; icon: typeof Newspaper; path: string; perm: Perm
   { key: "profile",    icon: UserCircle2,     path: "/admin/profile",                   perm: "analytics.view" },
   { key: "articles",   icon: Newspaper,       path: "/admin",                           perm: "articles.manage" },
   { key: "wiki",       icon: BookOpen,        path: "/admin/wiki",                      perm: "wiki.manage" },
+  { key: "roadmap",    icon: Map,             path: "/admin/roadmap",                   perm: "roadmap.manage" },
   { key: "tickets",    icon: LifeBuoy,        path: "/admin/tickets",                   perm: "tickets.view" },
   { key: "staffMgr",   icon: UserCog,         path: "/admin/staff",                     perm: "staff.manage" },
   { key: "dashboard",  icon: LayoutDashboard, path: "/admin/analytics",                 perm: "analytics.view" },
@@ -37,6 +38,7 @@ const NAV_LABELS: Record<string, { fr: string; en: string }> = {
   profile: { fr: "Mon compte", en: "My account" },
   articles: { fr: "Articles", en: "Articles" },
   wiki: { fr: "Wiki", en: "Wiki" },
+  roadmap: { fr: "Roadmap", en: "Roadmap" },
   tickets: { fr: "Tickets", en: "Tickets" },
   staffMgr: { fr: "Gestion Staff", en: "Staff Management" },
   dashboard: { fr: "Dashboard", en: "Dashboard" },
