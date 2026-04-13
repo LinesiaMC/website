@@ -32,11 +32,24 @@ export async function exchangeMicrosoftCode(params: {
       scope: "XboxLive.signin offline_access",
     }),
   });
-  if (!res.ok) throw new Error(`ms_token_exchange:${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`ms_token_exchange:${res.status}:${body.slice(0, 300)}`);
+  }
   const j = await res.json() as { access_token?: string };
   if (!j.access_token) throw new Error("ms_no_access_token");
   return j.access_token;
 }
+
+const XSTS_ERROR_MAP: Record<string, string> = {
+  "2148916227": "xbox_banned",
+  "2148916233": "xbox_no_account",
+  "2148916235": "xbox_country_banned",
+  "2148916236": "xbox_adult_verification_required",
+  "2148916237": "xbox_adult_verification_required",
+  "2148916238": "xbox_child_account",
+  "2148916239": "xbox_account_creation_required",
+};
 
 async function xblUserAuth(msAccessToken: string): Promise<{ token: string; uhs: string }> {
   const res = await fetch("https://user.auth.xboxlive.com/user/authenticate", {
@@ -52,9 +65,14 @@ async function xblUserAuth(msAccessToken: string): Promise<{ token: string; uhs:
       TokenType: "JWT",
     }),
   });
-  if (!res.ok) throw new Error(`xbl_auth:${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`xbl_auth:${res.status}:${body.slice(0, 300)}`);
+  }
   const j = await res.json() as { Token: string; DisplayClaims: { xui: { uhs: string }[] } };
-  return { token: j.Token, uhs: j.DisplayClaims.xui[0].uhs };
+  const uhs = j.DisplayClaims?.xui?.[0]?.uhs;
+  if (!j.Token || !uhs) throw new Error("xbl_auth_no_claims");
+  return { token: j.Token, uhs };
 }
 
 async function xstsAuthorize(xblToken: string): Promise<{ token: string; uhs: string; xuid: string | null }> {
@@ -67,9 +85,19 @@ async function xstsAuthorize(xblToken: string): Promise<{ token: string; uhs: st
       TokenType: "JWT",
     }),
   });
-  if (!res.ok) throw new Error(`xsts:${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    let xerr: string | null = null;
+    try {
+      const j = JSON.parse(body) as { XErr?: number };
+      if (j.XErr != null) xerr = String(j.XErr);
+    } catch {}
+    const mapped = xerr ? XSTS_ERROR_MAP[xerr] : null;
+    throw new Error(`xsts:${res.status}:${mapped || xerr || "unknown"}:${body.slice(0, 300)}`);
+  }
   const j = await res.json() as { Token: string; DisplayClaims: { xui: { uhs: string; xid?: string }[] } };
-  const claim = j.DisplayClaims.xui[0];
+  const claim = j.DisplayClaims?.xui?.[0];
+  if (!j.Token || !claim) throw new Error("xsts_no_claims");
   return { token: j.Token, uhs: claim.uhs, xuid: claim.xid || null };
 }
 
@@ -84,7 +112,10 @@ async function fetchXboxProfile(xstsToken: string, uhs: string, xuidHint: string
       },
     },
   );
-  if (!res.ok) throw new Error(`xbox_profile:${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`xbox_profile:${res.status}:${body.slice(0, 300)}`);
+  }
   const j = await res.json() as {
     profileUsers: { id: string; settings: { id: string; value: string }[] }[];
   };

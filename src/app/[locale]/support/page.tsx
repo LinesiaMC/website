@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { LifeBuoy, Send, Search, ShoppingBag, RefreshCcw, Shield, Flag, HelpCircle } from "lucide-react";
 import { CATEGORY_LABELS, TicketCategory } from "@/lib/tickets";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
 const PUBLIC_CATEGORIES: { key: TicketCategory; icon: typeof ShoppingBag; desc: { fr: string; en: string } }[] = [
   { key: "purchase", icon: ShoppingBag, desc: { fr: "Question sur un achat en boutique", en: "Question about a store purchase" } },
@@ -60,7 +62,9 @@ export default function SupportPage() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-soft py-12 px-4">
+    <main>
+      <Navbar />
+    <div className="min-h-screen bg-bg-soft pt-[110px] pb-16 px-4">
       <div className="max-w-[720px] mx-auto">
         <div className="text-center mb-8">
           <div className="w-14 h-14 rounded-2xl bg-pink/10 flex items-center justify-center mx-auto mb-3">
@@ -149,6 +153,8 @@ export default function SupportPage() {
         )}
       </div>
     </div>
+      <Footer />
+    </main>
   );
 }
 

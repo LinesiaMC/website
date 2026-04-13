@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Trophy, Search, Clock, Users, ChevronLeft, ChevronRight, Activity } from "lucide-react";
+import { Trophy, Search, Clock, Users, ChevronLeft, ChevronRight, Activity, Check } from "lucide-react";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
 interface Row {
   uuid: string;
@@ -13,6 +15,8 @@ interface Row {
   session_count: number;
   last_seen: number;
   first_seen: number;
+  linked?: boolean;
+  linked_ms_gamertag?: string | null;
 }
 
 const SORTS = [
@@ -61,6 +65,8 @@ export default function LeaderboardPage() {
   const totalPages = Math.ceil(total / limit);
 
   return (
+    <main>
+      <Navbar />
     <div className="min-h-screen bg-bg-soft pt-[110px] pb-16 px-4">
       <div className="max-w-[900px] mx-auto">
         <div className="text-center mb-8">
@@ -111,6 +117,7 @@ export default function LeaderboardPage() {
                   <th className="text-left px-4 py-3 font-semibold text-text-sub"><Clock size={12} className="inline mr-1" />{locale === "fr" ? "Temps" : "Time"}</th>
                   <th className="text-left px-4 py-3 font-semibold text-text-sub"><Users size={12} className="inline mr-1" />Sessions</th>
                   <th className="text-left px-4 py-3 font-semibold text-text-sub hidden md:table-cell">{locale === "fr" ? "Vue" : "Last"}</th>
+                  <th className="text-left px-4 py-3 font-semibold text-text-sub hidden md:table-cell">{locale === "fr" ? "Compte" : "Account"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -126,6 +133,15 @@ export default function LeaderboardPage() {
                     <td className="px-4 py-3 text-text-sub">{formatDuration(r.total_playtime)}</td>
                     <td className="px-4 py-3 text-text-sub">{r.session_count}</td>
                     <td className="px-4 py-3 text-text-sub hidden md:table-cell">{formatDate(r.last_seen, locale)}</td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      {r.linked ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full" title={r.linked_ms_gamertag || ""}>
+                          <Check size={10} />{locale === "fr" ? "Lié" : "Linked"}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-text-muted">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -149,5 +165,7 @@ export default function LeaderboardPage() {
         )}
       </div>
     </div>
+      <Footer />
+    </main>
   );
 }

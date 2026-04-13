@@ -329,7 +329,42 @@ export async function getDb(): Promise<Client> {
         PRIMARY KEY (xuid, full_id)
       )`,
       `CREATE INDEX IF NOT EXISTS idx_player_cosmetics_xuid ON player_cosmetics(xuid)`,
+      `CREATE TABLE IF NOT EXISTS role_permissions (
+        role TEXT NOT NULL,
+        permission TEXT NOT NULL,
+        allowed INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        updated_by TEXT,
+        PRIMARY KEY (role, permission)
+      )`,
+      `CREATE TABLE IF NOT EXISTS staff_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        actor TEXT NOT NULL,
+        action TEXT NOT NULL,
+        target TEXT,
+        detail TEXT,
+        timestamp INTEGER NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_audit_ts ON staff_audit(timestamp)`,
     ]);
+
+    // --- staff_users: source + ingame_rank columns (idempotent) ---
+    try {
+      const cols = await getAll(db, "PRAGMA table_info(staff_users)");
+      const names = new Set(cols.map((c) => c.name as string));
+      if (!names.has("source")) {
+        await run(db, "ALTER TABLE staff_users ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'");
+      }
+      if (!names.has("ingame_rank")) {
+        await run(db, "ALTER TABLE staff_users ADD COLUMN ingame_rank TEXT");
+      }
+      if (!names.has("linked_xuid")) {
+        await run(db, "ALTER TABLE staff_users ADD COLUMN linked_xuid TEXT");
+        await run(db, "CREATE INDEX IF NOT EXISTS idx_staff_users_linked_xuid ON staff_users(linked_xuid)");
+      }
+    } catch (e) {
+      console.error("[db] staff_users source migration failed", e);
+    }
 
     // --- players table: add xuid column (idempotent) ---
     try {

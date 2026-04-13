@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentStaff } from "@/lib/auth";
+import { getPermissionsForRole } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const staff = await getCurrentStaff(req);
-  if (!staff) return NextResponse.json({ staff: null });
+  if (!staff) return NextResponse.json({ staff: null, permissions: null });
+  const permissions = await getPermissionsForRole(staff.role);
   return NextResponse.json({
     staff: {
       id: staff.id,
@@ -18,5 +20,6 @@ export async function GET(req: NextRequest) {
       createdAt: staff.createdAt,
       lastLogin: staff.lastLogin,
     },
+    permissions,
   });
 }

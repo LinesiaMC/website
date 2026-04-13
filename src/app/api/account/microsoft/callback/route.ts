@@ -29,6 +29,10 @@ export async function GET(req: NextRequest) {
     profile = await fetchMicrosoftProfile(msAccess);
   } catch (e) {
     console.error("[player-ms-auth]", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    const m = msg.match(/^xsts:\d+:([a-z_]+):/);
+    if (m && m[1] !== "unknown") return errorRedirect(req, m[1]);
+    if (msg.startsWith("ms_token_exchange")) return errorRedirect(req, "ms_token_exchange_failed");
     return errorRedirect(req, "xbox_auth_failed");
   }
   if (!profile.xuid) return errorRedirect(req, "no_xuid");

@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Clock, Users, Coins, Skull, Dice5, Activity, Sword, Crown, Sparkles, Briefcase } from "lucide-react";
+import { ArrowLeft, Clock, Users, Coins, Skull, Dice5, Activity, Sword, Crown, Sparkles, Briefcase, Link as LinkIcon, Check } from "lucide-react";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
 interface JobInfo { name: string; level: number; xp: number }
 interface CosmeticInfo { fullId: string; type: string; identifier: string; name: string | null; active: boolean }
@@ -50,9 +52,12 @@ const COSMETIC_TYPE_LABEL: Record<string, string> = {
   tag: "Tag",
 };
 
+interface LinkInfo { microsoftGamertag: string | null; microsoftDisplayName: string | null; linkedSince: number | null }
+
 export default function PlayerProfilePage() {
   const { locale, uuid } = useParams<{ locale: string; uuid: string }>();
   const [stats, setStats] = useState<Stats | null>(null);
+  const [link, setLink] = useState<LinkInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -61,6 +66,7 @@ export default function PlayerProfilePage() {
       if (r.status === 404) { setNotFound(true); setLoading(false); return; }
       const j = await r.json();
       setStats(j.stats);
+      setLink(j.link || null);
       setLoading(false);
     });
   }, [uuid]);
@@ -71,6 +77,8 @@ export default function PlayerProfilePage() {
   }, {}) ?? {};
 
   return (
+    <main>
+      <Navbar />
     <div className="min-h-screen bg-bg-soft pt-[110px] pb-16 px-4">
       <div className="max-w-[820px] mx-auto">
         <Link href={`/${locale}/leaderboard`} className="inline-flex items-center gap-1.5 text-[13px] text-text-sub hover:text-pink mb-4">
@@ -95,12 +103,26 @@ export default function PlayerProfilePage() {
                   <p className="text-[12px] text-text-muted">
                     {stats.platform} · {locale === "fr" ? "Depuis le" : "Since"} {fmtDate(stats.firstSeen, locale)}
                   </p>
-                  {stats.extra?.rank && (
-                    <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-pink bg-pink/10 px-2 py-1 rounded">
-                      <Crown size={12} />{stats.extra.rank}
-                      {stats.extra.prestige > 0 && <span className="ml-1 text-text-sub">· P{stats.extra.prestige}</span>}
-                    </div>
-                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {stats.extra?.rank && (
+                      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-pink bg-pink/10 px-2 py-1 rounded">
+                        <Crown size={12} />{stats.extra.rank}
+                        {stats.extra.prestige > 0 && <span className="ml-1 text-text-sub">· P{stats.extra.prestige}</span>}
+                      </div>
+                    )}
+                    {link ? (
+                      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded">
+                        <Check size={12} />
+                        {locale === "fr" ? "Compte lié" : "Account linked"}
+                        {link.microsoftGamertag && <span className="font-normal text-text-sub">· {link.microsoftGamertag}</span>}
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-text-muted bg-bg-soft border border-border px-2 py-1 rounded">
+                        <LinkIcon size={11} />
+                        {locale === "fr" ? "Non lié" : "Not linked"}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -174,6 +196,8 @@ export default function PlayerProfilePage() {
         )}
       </div>
     </div>
+      <Footer />
+    </main>
   );
 }
 

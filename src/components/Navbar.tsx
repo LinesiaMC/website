@@ -31,7 +31,6 @@ export default function Navbar() {
     { href: "/leaderboard" as const, label: locale === "fr" ? "Classement" : "Leaderboard" },
     { href: "/wiki" as const, label: t("wiki") },
     { href: "/support" as const, label: locale === "fr" ? "Support" : "Support" },
-    { href: "https://store.linesia.net", label: t("store"), external: true },
   ];
 
   const switchLocale = (newLocale: "fr" | "en") => {
@@ -49,7 +48,7 @@ export default function Navbar() {
         </Link>
 
         {/* Center nav */}
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden lg:flex items-center gap-6">
           {navLinks.map((link) =>
             link.external ? (
               <a
@@ -78,7 +77,7 @@ export default function Navbar() {
         </div>
 
         {/* Right */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Language */}
           <div className="relative">
             <button
@@ -141,7 +140,7 @@ export default function Navbar() {
             {t("play")}
           </Link>
 
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden text-text-sub">
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden text-text-sub">
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
@@ -154,7 +153,7 @@ export default function Navbar() {
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            className="mt-2 bg-white rounded-2xl shadow-lg border border-border p-2 md:hidden"
+            className="mt-2 bg-white rounded-2xl shadow-lg border border-border p-2 lg:hidden"
           >
             {navLinks.map((link) =>
               link.external ? (

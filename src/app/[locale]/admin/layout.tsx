@@ -20,6 +20,8 @@ const NAV_ITEMS: { key: string; icon: typeof Newspaper; path: string; perm: Perm
   { key: "roadmap",    icon: Map,             path: "/admin/roadmap",                   perm: "roadmap.manage" },
   { key: "tickets",    icon: LifeBuoy,        path: "/admin/tickets",                   perm: "tickets.view" },
   { key: "staffMgr",   icon: UserCog,         path: "/admin/staff",                     perm: "staff.manage" },
+  { key: "rolesMgr",   icon: Shield,          path: "/admin/roles",                     perm: "permissions.manage" },
+  { key: "community",  icon: Users,           path: "/admin/community",                 perm: "community.view" },
   { key: "dashboard",  icon: LayoutDashboard, path: "/admin/analytics",                 perm: "analytics.view" },
   { key: "players",    icon: Users,           path: "/admin/analytics/players",         perm: "analytics.view" },
   { key: "retention",  icon: TrendingUp,      path: "/admin/analytics/retention",       perm: "analytics.view" },
@@ -41,6 +43,8 @@ const NAV_LABELS: Record<string, { fr: string; en: string }> = {
   roadmap: { fr: "Roadmap", en: "Roadmap" },
   tickets: { fr: "Tickets", en: "Tickets" },
   staffMgr: { fr: "Gestion Staff", en: "Staff Management" },
+  rolesMgr: { fr: "Permissions", en: "Permissions" },
+  community: { fr: "Communauté", en: "Community" },
   dashboard: { fr: "Dashboard", en: "Dashboard" },
   players: { fr: "Joueurs", en: "Players" },
   retention: { fr: "Rétention", en: "Retention" },
@@ -59,6 +63,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const { locale } = useParams<{ locale: string }>();
   const pathname = usePathname();
   const [staff, setStaff] = useState<CurrentStaff | null>(null);
+  const [permissions, setPermissions] = useState<Partial<Record<Permission, boolean>>>({});
   const [ready, setReady] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -74,13 +79,19 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         const res = await fetch("/api/auth/me", { cache: "no-store" });
         const data = await res.json();
         setStaff(data.staff);
+        if (data.permissions) setPermissions(data.permissions);
       } catch { /* ignore */ }
       setReady(true);
     })();
   }, []);
 
   const headers = useCallback(() => ({ "Content-Type": "application/json" }), []);
-  const can = useCallback((perm: Permission) => staff ? hasPermission(staff.role, perm) : false, [staff]);
+  const can = useCallback((perm: Permission) => {
+    if (!staff) return false;
+    if (staff.role === "founder") return true;
+    if (perm in permissions) return permissions[perm] === true;
+    return hasPermission(staff.role, perm);
+  }, [staff, permissions]);
   const logout = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     setStaff(null);
@@ -184,7 +195,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           )}
 
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-            {NAV_ITEMS.filter((i) => hasPermission(staff.role, i.perm)).map((item) => {
+            {NAV_ITEMS.filter((i) => can(i.perm)).map((item) => {
               const active = isActive(item.path);
               const Icon = item.icon;
               const label = NAV_LABELS[item.key][locale as "fr" | "en"] || NAV_LABELS[item.key].en;

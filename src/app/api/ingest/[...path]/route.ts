@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, run, getOne, upsertServer } from "@/lib/analytics-db";
 import { cacheInvalidate } from "@/lib/query-cache";
+import { syncStaffFromIngame } from "@/lib/staff-sync";
 
 // Tables whose writes should punch through the analytics read cache. We
 // invalidate broadly via prefixes rather than precise keys — cheap enough
@@ -312,6 +313,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
         if (uuid) {
           await run(db, `UPDATE players SET xuid = ? WHERE uuid = ? AND (xuid IS NULL OR xuid = '')`, [xuid, uuid]);
         }
+        // The Minecraft server is the source of truth for staff rank.
+        await syncStaffFromIngame({ xuid, uuid: uuid || null, username: username || "Unknown", ingameRank: rank || null });
         return NextResponse.json({ success: true });
       }
 

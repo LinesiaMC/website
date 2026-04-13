@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { LifeBuoy, Send, User, Lock, ArrowLeft, Paperclip, AlertCircle, Clock } from "lucide-react";
 import { CATEGORY_LABELS, TicketCategory, TicketStatus } from "@/lib/tickets";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
 interface Ticket {
   id: string; code: string; playerName: string; category: TicketCategory;
@@ -50,22 +52,34 @@ export default function PublicTicketPage() {
     setSending(false);
   };
 
-  if (loading) return <div className="min-h-screen bg-bg-soft flex items-center justify-center text-text-muted">{locale === "fr" ? "Chargement..." : "Loading..."}</div>;
+  if (loading) return (
+    <main>
+      <Navbar />
+      <div className="min-h-screen bg-bg-soft flex items-center justify-center text-text-muted pt-[110px]">{locale === "fr" ? "Chargement..." : "Loading..."}</div>
+      <Footer />
+    </main>
+  );
   if (error || !ticket) return (
-    <div className="min-h-screen bg-bg-soft flex items-center justify-center p-4">
-      <div className="mc-card p-8 text-center max-w-sm">
-        <AlertCircle size={28} className="mx-auto mb-3 text-text-muted" />
-        <h2 className="text-[15px] font-bold text-text mb-1">{locale === "fr" ? "Ticket introuvable" : "Ticket not found"}</h2>
-        <p className="text-[13px] text-text-sub mb-4">{locale === "fr" ? "Vérifie le code et réessaye." : "Check the code and try again."}</p>
-        <Link href={`/${locale}/support`} className="btn-primary !py-2 !px-4 !text-[13px]">{locale === "fr" ? "Retour au support" : "Back to support"}</Link>
+    <main>
+      <Navbar />
+      <div className="min-h-screen bg-bg-soft flex items-center justify-center p-4 pt-[110px]">
+        <div className="mc-card p-8 text-center max-w-sm">
+          <AlertCircle size={28} className="mx-auto mb-3 text-text-muted" />
+          <h2 className="text-[15px] font-bold text-text mb-1">{locale === "fr" ? "Ticket introuvable" : "Ticket not found"}</h2>
+          <p className="text-[13px] text-text-sub mb-4">{locale === "fr" ? "Vérifie le code et réessaye." : "Check the code and try again."}</p>
+          <Link href={`/${locale}/support`} className="btn-primary !py-2 !px-4 !text-[13px]">{locale === "fr" ? "Retour au support" : "Back to support"}</Link>
+        </div>
       </div>
-    </div>
+      <Footer />
+    </main>
   );
 
   const isClosed = ticket.status === "closed";
 
   return (
-    <div className="min-h-screen bg-bg-soft py-8 px-4">
+    <main>
+      <Navbar />
+    <div className="min-h-screen bg-bg-soft pt-[110px] pb-16 px-4">
       <div className="max-w-[800px] mx-auto">
         <Link href={`/${locale}/support`} className="inline-flex items-center gap-1.5 text-[12px] text-text-sub hover:text-pink mb-4">
           <ArrowLeft size={14} />{locale === "fr" ? "Support" : "Support"}
@@ -132,6 +146,8 @@ export default function PublicTicketPage() {
         </div>
       </div>
     </div>
+      <Footer />
+    </main>
   );
 }
 

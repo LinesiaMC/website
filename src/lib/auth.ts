@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { getDb, getAll, getOne, run } from "./analytics-db";
-import { StaffRole, Permission, hasPermission } from "./roles";
+import { StaffRole, Permission } from "./roles";
+import { hasPermissionDb } from "./permissions";
 
 export const SESSION_COOKIE = "linesia_staff_session";
 const SESSION_TTL_DAYS = 30;
@@ -186,7 +187,7 @@ export async function getCurrentStaff(req?: NextRequest): Promise<StaffUser | nu
 export async function requirePermission(req: NextRequest, perm: Permission): Promise<StaffUser | NextResponse> {
   const staff = await getCurrentStaff(req);
   if (!staff) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!hasPermission(staff.role, perm)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await hasPermissionDb(staff.role, perm))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   return staff;
 }
 

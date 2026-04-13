@@ -36,19 +36,128 @@ export type Permission =
   | "tickets.close"
   | "tickets.admin_category"
   | "staff.manage"
+  | "permissions.manage"
+  | "community.view"
   | "analytics.view";
 
+export const PERMISSIONS: Permission[] = [
+  "articles.manage", "wiki.manage", "roadmap.manage",
+  "logs.view", "analytics.view", "community.view",
+  "tickets.view", "tickets.respond", "tickets.close", "tickets.admin_category",
+  "staff.manage", "permissions.manage",
+];
+
+export const PERMISSION_LABELS: Record<Permission, { fr: string; en: string; group: string }> = {
+  "articles.manage":         { fr: "Gérer les articles",       en: "Manage articles",        group: "content" },
+  "wiki.manage":             { fr: "Gérer le wiki",            en: "Manage wiki",            group: "content" },
+  "roadmap.manage":          { fr: "Gérer la roadmap",         en: "Manage roadmap",         group: "content" },
+  "logs.view":               { fr: "Voir les logs",            en: "View logs",              group: "data" },
+  "analytics.view":          { fr: "Voir les analytics",       en: "View analytics",         group: "data" },
+  "community.view":          { fr: "Voir la communauté",       en: "View community",         group: "data" },
+  "tickets.view":            { fr: "Voir les tickets",         en: "View tickets",           group: "tickets" },
+  "tickets.respond":         { fr: "Répondre aux tickets",     en: "Respond to tickets",     group: "tickets" },
+  "tickets.close":           { fr: "Clore les tickets",        en: "Close tickets",          group: "tickets" },
+  "tickets.admin_category":  { fr: "Tickets catégorie staff",  en: "Staff-category tickets", group: "tickets" },
+  "staff.manage":            { fr: "Gérer le staff",           en: "Manage staff",           group: "admin" },
+  "permissions.manage":      { fr: "Gérer les permissions",    en: "Manage permissions",     group: "admin" },
+};
+
+/**
+ * Default role-permission matrix. Used as fallback when role_permissions
+ * table has no override for a given (role, permission) pair, and as the
+ * seed values shown in the admin matrix UI.
+ *
+ * Founder is a special-case super-admin that ALWAYS has every permission
+ * — this is enforced in code, not via the matrix.
+ */
+export const DEFAULT_PERMISSIONS: Record<StaffRole, Record<Permission, boolean>> = {
+  guide: {
+    "articles.manage": false, "wiki.manage": false, "roadmap.manage": false,
+    "logs.view": false, "analytics.view": true, "community.view": true,
+    "tickets.view": true, "tickets.respond": true, "tickets.close": false, "tickets.admin_category": false,
+    "staff.manage": false, "permissions.manage": false,
+  },
+  moderator: {
+    "articles.manage": false, "wiki.manage": true, "roadmap.manage": false,
+    "logs.view": true, "analytics.view": true, "community.view": true,
+    "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": false,
+    "staff.manage": false, "permissions.manage": false,
+  },
+  super_moderator: {
+    "articles.manage": true, "wiki.manage": true, "roadmap.manage": true,
+    "logs.view": true, "analytics.view": true, "community.view": true,
+    "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": false,
+    "staff.manage": false, "permissions.manage": false,
+  },
+  admin: {
+    "articles.manage": true, "wiki.manage": true, "roadmap.manage": true,
+    "logs.view": true, "analytics.view": true, "community.view": true,
+    "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": true,
+    "staff.manage": true, "permissions.manage": false,
+  },
+  founder: {
+    "articles.manage": true, "wiki.manage": true, "roadmap.manage": true,
+    "logs.view": true, "analytics.view": true, "community.view": true,
+    "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": true,
+    "staff.manage": true, "permissions.manage": true,
+  },
+};
+
+/**
+ * Synchronous fallback used by SSR and client before the live permission
+ * map loads. Server endpoints MUST use hasPermissionDb (see lib/permissions.ts).
+ */
 export function hasPermission(role: StaffRole, perm: Permission): boolean {
-  switch (perm) {
-    case "articles.manage":      return roleAtLeast(role, "super_moderator");
-    case "wiki.manage":          return roleAtLeast(role, "moderator");
-    case "roadmap.manage":       return roleAtLeast(role, "super_moderator");
-    case "logs.view":            return roleAtLeast(role, "moderator");
-    case "analytics.view":       return roleAtLeast(role, "guide");
-    case "tickets.view":         return roleAtLeast(role, "guide");
-    case "tickets.respond":      return roleAtLeast(role, "guide");
-    case "tickets.close":        return roleAtLeast(role, "moderator");
-    case "tickets.admin_category": return roleAtLeast(role, "admin");
-    case "staff.manage":         return roleAtLeast(role, "admin");
+  if (role === "founder") return true;
+  return DEFAULT_PERMISSIONS[role]?.[perm] ?? false;
+}
+
+// =================================================================
+// In-game rank → site role mapping. The Minecraft server is the
+// source of truth for staff rank: when a linked player's in-game
+// rank changes, their staff_users row is upserted/deleted accordingly.
+// =================================================================
+
+export type IngameRank =
+  | "joueur" | "influenceur" | "premium" | "elite" | "vérificateur"
+  | "guide" | "modérateur" | "super-modérateur" | "administrateur" | "owner";
+
+export const INGAME_RANK_LABELS: Record<IngameRank, { fr: string; en: string; color: string; isStaff: boolean }> = {
+  joueur:            { fr: "Joueur",            en: "Player",            color: "#94A3B8", isStaff: false },
+  influenceur:       { fr: "Influenceur",       en: "Influencer",        color: "#EC4899", isStaff: false },
+  premium:           { fr: "Premium",           en: "Premium",           color: "#F59E0B", isStaff: false },
+  elite:             { fr: "Élite",             en: "Elite",             color: "#A855F7", isStaff: false },
+  "vérificateur":    { fr: "Vérificateur",      en: "Verifier",          color: "#0EA5E9", isStaff: true  },
+  guide:             { fr: "Guide",             en: "Guide",             color: "#14B8A6", isStaff: true  },
+  "modérateur":      { fr: "Modérateur",        en: "Moderator",         color: "#16A34A", isStaff: true  },
+  "super-modérateur":{ fr: "Super-Modérateur",  en: "Super-Moderator",   color: "#F97316", isStaff: true  },
+  administrateur:    { fr: "Administrateur",    en: "Administrator",     color: "#EF4444", isStaff: true  },
+  owner:             { fr: "Owner",             en: "Owner",             color: "#991B1B", isStaff: true  },
+};
+
+/** Returns the site StaffRole for an in-game rank, or null if not staff. */
+export function ingameRankToStaffRole(ingameRank: string | null | undefined): StaffRole | null {
+  if (!ingameRank) return null;
+  const r = ingameRank.toLowerCase().trim();
+  switch (r) {
+    case "vérificateur":
+    case "verificateur":
+    case "guide":
+      return "guide";
+    case "modérateur":
+    case "moderateur":
+      return "moderator";
+    case "super-modérateur":
+    case "super-moderateur":
+    case "super_moderateur":
+      return "super_moderator";
+    case "administrateur":
+    case "admin":
+      return "admin";
+    case "owner":
+    case "founder":
+      return "founder";
+    default:
+      return null;
   }
 }

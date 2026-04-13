@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { User, LogIn, LogOut, Link as LinkIcon, Unlink, Check, Copy, Clock, Coins, Skull, Dice5, Users as UsersIcon, Activity } from "lucide-react";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
 interface Account {
   id: string;
@@ -26,6 +28,59 @@ interface Stats {
   lastSeen: number;
 }
 
+function authErrorLabel(code: string, locale: string): string {
+  const fr = locale === "fr";
+  const map: Record<string, { fr: string; en: string }> = {
+    xbox_no_account: {
+      fr: "Ce compte Microsoft n'a pas de profil Xbox Live. Crée-en un sur xbox.com puis réessaie.",
+      en: "This Microsoft account has no Xbox Live profile. Create one at xbox.com and retry.",
+    },
+    xbox_account_creation_required: {
+      fr: "Ce compte Microsoft n'a pas de profil Xbox Live. Crée-en un sur xbox.com puis réessaie.",
+      en: "This Microsoft account has no Xbox Live profile. Create one at xbox.com and retry.",
+    },
+    xbox_child_account: {
+      fr: "Compte enfant : il doit être ajouté à une Family Microsoft par un adulte avant de se connecter.",
+      en: "Child account: an adult must add it to a Microsoft Family before signing in.",
+    },
+    xbox_country_banned: {
+      fr: "Xbox Live n'est pas disponible dans le pays de ce compte Microsoft.",
+      en: "Xbox Live is not available in this account's country.",
+    },
+    xbox_banned: {
+      fr: "Ce compte Xbox Live est banni.",
+      en: "This Xbox Live account is banned.",
+    },
+    xbox_adult_verification_required: {
+      fr: "Vérification d'âge requise sur ton compte Microsoft.",
+      en: "Age verification required on your Microsoft account.",
+    },
+    not_configured: {
+      fr: "Connexion Microsoft non configurée côté serveur.",
+      en: "Microsoft sign-in is not configured on the server.",
+    },
+    state_mismatch: {
+      fr: "Session expirée, réessaie la connexion.",
+      en: "Session expired, please retry.",
+    },
+    ms_token_exchange_failed: {
+      fr: "Microsoft a rejeté la connexion. Vérifie le client ID / secret / redirect URI.",
+      en: "Microsoft rejected the sign-in. Check client ID / secret / redirect URI.",
+    },
+    no_xuid: {
+      fr: "Profil Xbox introuvable sur ce compte Microsoft.",
+      en: "No Xbox profile found on this Microsoft account.",
+    },
+    xbox_auth_failed: {
+      fr: "Échec de l'authentification Xbox Live. Réessaie dans quelques minutes.",
+      en: "Xbox Live authentication failed. Please retry in a few minutes.",
+    },
+  };
+  const entry = map[code];
+  if (entry) return fr ? entry.fr : entry.en;
+  return (fr ? "Erreur d'authentification : " : "Auth error: ") + code;
+}
+
 function fmtDur(ms: number): string {
   const s = Math.floor(ms / 1000);
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
@@ -35,15 +90,19 @@ function fmtDur(ms: number): string {
 
 export default function AccountPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-bg-soft pt-[110px] px-4">
-        <div className="max-w-[640px] mx-auto mc-card p-12 text-center">
-          <Activity size={24} className="text-pink mx-auto animate-pulse" />
+    <main>
+      <Navbar />
+      <Suspense fallback={
+        <div className="min-h-screen bg-bg-soft pt-[110px] px-4">
+          <div className="max-w-[640px] mx-auto mc-card p-12 text-center">
+            <Activity size={24} className="text-pink mx-auto animate-pulse" />
+          </div>
         </div>
-      </div>
-    }>
-      <AccountPageInner />
-    </Suspense>
+      }>
+        <AccountPageInner />
+      </Suspense>
+      <Footer />
+    </main>
   );
 }
 
@@ -127,7 +186,7 @@ function AccountPageInner() {
             </p>
             {authError && (
               <p className="text-red-500 text-[12px] mb-3">
-                {locale === "fr" ? "Erreur d'authentification : " : "Auth error: "}{authError}
+                {authErrorLabel(authError, locale)}
               </p>
             )}
             <button
