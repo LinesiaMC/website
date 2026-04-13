@@ -49,31 +49,19 @@ export default function Navbar() {
 
         {/* Center nav */}
         <div className="hidden lg:flex items-center gap-6">
-          {navLinks.map((link) =>
-            link.external ? (
-              <a
-                key={link.href}
-                href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[14px] transition-all duration-100 font-normal text-text-sub hover:font-semibold hover:text-text"
-              >
-                {link.label}
-              </a>
-            ) : (
-              <Link
-                key={link.href}
-                href={link.href as "/" | "/news" | "/wiki" | "/support" | "/leaderboard"}
-                className={`text-[14px] transition-all duration-100 ${
-                  pathname === link.href
-                    ? "font-semibold text-text"
-                    : "font-normal text-text-sub hover:font-semibold hover:text-text"
-                }`}
-              >
-                {link.label}
-              </Link>
-            )
-          )}
+          {navLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`text-[14px] transition-all duration-100 ${
+                pathname === link.href
+                  ? "font-semibold text-text"
+                  : "font-normal text-text-sub hover:font-semibold hover:text-text"
+              }`}
+            >
+              {link.label}
+            </Link>
+          ))}
         </div>
 
         {/* Right */}
@@ -155,31 +143,18 @@ export default function Navbar() {
             exit={{ opacity: 0, y: -6 }}
             className="mt-2 bg-white rounded-2xl shadow-lg border border-border p-2 lg:hidden"
           >
-            {navLinks.map((link) =>
-              link.external ? (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setMobileOpen(false)}
-                  className="block px-4 py-3 rounded-xl text-[14px] font-medium text-text-sub"
-                >
-                  {link.label}
-                </a>
-              ) : (
-                <Link
-                  key={link.href}
-                  href={link.href as "/" | "/news" | "/wiki" | "/support" | "/leaderboard"}
-                  onClick={() => setMobileOpen(false)}
-                  className={`block px-4 py-3 rounded-xl text-[14px] font-medium ${
-                    pathname === link.href ? "text-pink bg-pink-soft" : "text-text-sub"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              )
-            )}
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMobileOpen(false)}
+                className={`block px-4 py-3 rounded-xl text-[14px] font-medium ${
+                  pathname === link.href ? "text-pink bg-pink-soft" : "text-text-sub"
+                }`}
+              >
+                {link.label}
+              </Link>
+            ))}
             {account ? (
               <Link href={"/account" as never} onClick={() => setMobileOpen(false)}
                 className="flex items-center gap-2 px-4 py-3 rounded-xl text-[14px] font-medium text-text-sub">
