@@ -12,6 +12,9 @@ export interface PlayerAccount {
   microsoftId: string | null;
   microsoftGamertag: string | null;
   microsoftDisplayName: string | null;
+  discordId: string | null;
+  discordUsername: string | null;
+  discordAvatar: string | null;
   linkedPlayerUuid: string | null;
   linkedPlayerName: string | null;
   linkCode: string | null;
@@ -27,6 +30,9 @@ function rowToAccount(row: Record<string, unknown>): PlayerAccount {
     microsoftId: (row.microsoft_id as string) || null,
     microsoftGamertag: (row.microsoft_gamertag as string) || null,
     microsoftDisplayName: (row.microsoft_display_name as string) || null,
+    discordId: (row.discord_id as string) || null,
+    discordUsername: (row.discord_username as string) || null,
+    discordAvatar: (row.discord_avatar as string) || null,
     linkedPlayerUuid: (row.linked_player_uuid as string) || null,
     linkedPlayerName: (row.linked_player_name as string) || null,
     linkCode: (row.link_code as string) || null,
@@ -65,6 +71,23 @@ export async function ensureSchema(): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_player_sessions_acc ON player_sessions(account_id)`,
     `CREATE INDEX IF NOT EXISTS idx_player_sessions_exp ON player_sessions(expires_at)`,
   ]);
+  // Idempotent column additions for Discord multi-identity link.
+  try {
+    const cols = await db.execute("PRAGMA table_info(player_accounts)");
+    const names = new Set(cols.rows.map((r) => r.name as string));
+    if (!names.has("discord_id")) {
+      await run(db, "ALTER TABLE player_accounts ADD COLUMN discord_id TEXT");
+      await run(db, "CREATE UNIQUE INDEX IF NOT EXISTS idx_player_accounts_discord ON player_accounts(discord_id)");
+    }
+    if (!names.has("discord_username")) {
+      await run(db, "ALTER TABLE player_accounts ADD COLUMN discord_username TEXT");
+    }
+    if (!names.has("discord_avatar")) {
+      await run(db, "ALTER TABLE player_accounts ADD COLUMN discord_avatar TEXT");
+    }
+  } catch (e) {
+    console.error("[db] player_accounts discord migration failed", e);
+  }
 }
 
 export async function getAccountById(id: string): Promise<PlayerAccount | null> {
@@ -111,6 +134,7 @@ export async function createAccount(data: CreateAccountInput): Promise<PlayerAcc
     id, microsoftId: data.microsoftId ?? null,
     microsoftGamertag: data.microsoftGamertag ?? null,
     microsoftDisplayName: data.microsoftDisplayName ?? null,
+    discordId: null, discordUsername: null, discordAvatar: null,
     linkedPlayerUuid: null, linkedPlayerName: null,
     linkCode: null, linkCodeExpires: null,
     displayName: data.displayName ?? null,
@@ -128,6 +152,29 @@ export async function tryAutoLinkByGamertag(accountId: string, gamertag: string)
     "UPDATE player_accounts SET linked_player_uuid = ?, linked_player_name = ? WHERE id = ?",
     [uuid, name, accountId]);
   return { uuid, name };
+}
+
+export async function getAccountByDiscordId(discordId: string): Promise<PlayerAccount | null> {
+  await ensureSchema();
+  const db = await getDb();
+  const row = await getOne(db, "SELECT * FROM player_accounts WHERE discord_id = ?", [discordId]);
+  return row ? rowToAccount(row) : null;
+}
+
+export async function updateAccountDiscord(id: string, discord: {
+  discordId: string; discordUsername: string; discordAvatar: string | null;
+}): Promise<void> {
+  const db = await getDb();
+  await run(db,
+    "UPDATE player_accounts SET discord_id = ?, discord_username = ?, discord_avatar = ? WHERE id = ?",
+    [discord.discordId, discord.discordUsername, discord.discordAvatar, id]);
+}
+
+export async function unlinkAccountDiscord(id: string): Promise<void> {
+  const db = await getDb();
+  await run(db,
+    "UPDATE player_accounts SET discord_id = NULL, discord_username = NULL, discord_avatar = NULL WHERE id = ?",
+    [id]);
 }
 
 export async function updateAccountMicrosoft(id: string, gamertag: string, displayName: string): Promise<void> {

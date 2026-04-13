@@ -11,6 +11,9 @@ interface Account {
   id: string;
   microsoftGamertag: string | null;
   microsoftDisplayName: string | null;
+  discordId: string | null;
+  discordUsername: string | null;
+  discordAvatar: string | null;
   linkedPlayerUuid: string | null;
   linkedPlayerName: string | null;
   linkCode: string | null;
@@ -75,6 +78,22 @@ function authErrorLabel(code: string, locale: string): string {
       fr: "Échec de l'authentification Xbox Live. Réessaie dans quelques minutes.",
       en: "Xbox Live authentication failed. Please retry in a few minutes.",
     },
+    discord_not_linked: {
+      fr: "Ce compte Discord n'est lié à aucun compte Linesia. Connecte-toi d'abord avec Microsoft, puis lie Discord depuis /account.",
+      en: "This Discord account isn't linked to any Linesia account. Sign in with Microsoft first, then link Discord from /account.",
+    },
+    discord_already_linked: {
+      fr: "Ce Discord est déjà lié à un autre compte Linesia.",
+      en: "This Discord is already linked to another Linesia account.",
+    },
+    discord_token_exchange_failed: {
+      fr: "Discord a rejeté la connexion. Vérifie le client ID / secret / redirect URI.",
+      en: "Discord rejected the sign-in. Check client ID / secret / redirect URI.",
+    },
+    not_authenticated: {
+      fr: "Tu dois être connecté pour lier Discord.",
+      en: "You must be signed in to link Discord.",
+    },
   };
   const entry = map[code];
   if (entry) return fr ? entry.fr : entry.en;
@@ -110,6 +129,7 @@ function AccountPageInner() {
   const { locale } = useParams<{ locale: string }>();
   const sp = useSearchParams();
   const authError = sp.get("auth_error");
+  const authErrorDetail = sp.get("auth_error_detail");
   const [account, setAccount] = useState<Account | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -185,19 +205,31 @@ function AccountPageInner() {
                 : "Log in to see your stats, balance and open support tickets."}
             </p>
             {authError && (
-              <p className="text-red-500 text-[12px] mb-3">
-                {authErrorLabel(authError, locale)}
-              </p>
+              <div className="text-red-500 text-[12px] mb-3">
+                <p>{authErrorLabel(authError, locale)}</p>
+                {authErrorDetail && (
+                  <p className="mt-1 text-[11px] opacity-80 font-mono break-all">
+                    {authErrorDetail}
+                  </p>
+                )}
+              </div>
             )}
-            <button
-              onClick={() => { window.location.href = "/api/account/microsoft"; }}
-              className="btn-primary !py-3 !px-5 !text-[13px] inline-flex">
-              <LogIn size={14} />{locale === "fr" ? "Se connecter avec Microsoft" : "Sign in with Microsoft"}
-            </button>
+            <div className="flex flex-col gap-2 items-center">
+              <button
+                onClick={() => { window.location.href = "/api/account/microsoft"; }}
+                className="btn-primary !py-3 !px-5 !text-[13px] inline-flex">
+                <LogIn size={14} />{locale === "fr" ? "Se connecter avec Microsoft" : "Sign in with Microsoft"}
+              </button>
+              <button
+                onClick={() => { window.location.href = "/api/account/discord"; }}
+                className="!py-3 !px-5 !text-[13px] inline-flex items-center gap-2 rounded-xl bg-[#5865F2] text-white font-semibold hover:bg-[#4752C4] transition">
+                <LogIn size={14} />{locale === "fr" ? "Se connecter avec Discord" : "Sign in with Discord"}
+              </button>
+            </div>
             <p className="text-[11px] text-text-muted mt-4">
               {locale === "fr"
-                ? "Pas de compte Microsoft ? Connecte-toi puis lie ton pseudo en jeu avec /link."
-                : "No Microsoft account? Sign in, then link your in-game name with /link."}
+                ? "Commence par Microsoft (requis pour lier ton pseudo Bedrock). Discord est une identité supplémentaire à ajouter depuis ton compte."
+                : "Start with Microsoft (required to link your Bedrock name). Discord is an extra identity you add from your account."}
             </p>
           </div>
         </div>
@@ -226,6 +258,49 @@ function AccountPageInner() {
               <LogOut size={12} />{locale === "fr" ? "Déconnexion" : "Logout"}
             </button>
           </div>
+        </div>
+
+        {/* Identities */}
+        <div className="mc-card p-5">
+          <h2 className="text-[14px] font-bold text-text mb-3 flex items-center gap-2">
+            <User size={14} className="text-pink" />
+            {locale === "fr" ? "Connexions" : "Connections"}
+          </h2>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 px-3 py-2 rounded-xl border border-border bg-white">
+              <div className="w-7 h-7 rounded-lg bg-[#0078D4]/10 flex items-center justify-center text-[11px] font-bold text-[#0078D4]">MS</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-semibold text-text">Microsoft</p>
+                <p className="text-[11px] text-text-muted truncate">{account.microsoftGamertag || "—"}</p>
+              </div>
+              <Check size={14} className="text-green-600" />
+            </div>
+            <div className="flex items-center gap-3 px-3 py-2 rounded-xl border border-border bg-white">
+              <div className="w-7 h-7 rounded-lg bg-[#5865F2]/10 flex items-center justify-center text-[11px] font-bold text-[#5865F2]">D</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-semibold text-text">Discord</p>
+                <p className="text-[11px] text-text-muted truncate">{account.discordUsername || (locale === "fr" ? "Non lié" : "Not linked")}</p>
+              </div>
+              {account.discordId ? (
+                <button
+                  onClick={async () => { await fetch("/api/account/discord/unlink", { method: "POST" }); load(); }}
+                  className="text-[11px] text-red-500 hover:underline inline-flex items-center gap-1">
+                  <Unlink size={11} />{locale === "fr" ? "Dissocier" : "Unlink"}
+                </button>
+              ) : (
+                <button
+                  onClick={() => { window.location.href = "/api/account/discord"; }}
+                  className="text-[11px] font-semibold text-white bg-[#5865F2] hover:bg-[#4752C4] px-3 py-1.5 rounded-lg inline-flex items-center gap-1">
+                  <LinkIcon size={11} />{locale === "fr" ? "Lier" : "Link"}
+                </button>
+              )}
+            </div>
+          </div>
+          <p className="text-[11px] text-text-muted mt-3">
+            {locale === "fr"
+              ? "Une fois Discord lié, tu pourras te connecter avec l'un ou l'autre — c'est le même compte."
+              : "Once Discord is linked, you can sign in with either — it's the same account."}
+          </p>
         </div>
 
         {/* Link status */}

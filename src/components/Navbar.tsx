@@ -115,13 +115,13 @@ export default function Navbar() {
               </span>
             </Link>
           ) : (
-            <button
-              onClick={() => { window.location.href = "/api/account/microsoft"; }}
+            <Link
+              href={"/account" as never}
               className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-[10px] border border-border bg-white text-[13px] font-medium text-text-sub hover:border-pink hover:text-pink transition-colors"
             >
               <LogIn size={13} />
               <span>{locale === "fr" ? "Connexion" : "Login"}</span>
-            </button>
+            </Link>
           )}
 
           <Link href="/" className="btn-primary !py-2 !px-5 !text-[13px] !rounded-[10px] hidden sm:inline-flex">
@@ -161,11 +161,12 @@ export default function Navbar() {
                 <User size={14} />{account.linkedPlayerName || account.microsoftGamertag || (locale === "fr" ? "Mon compte" : "Account")}
               </Link>
             ) : (
-              <button
-                onClick={() => { setMobileOpen(false); window.location.href = "/api/account/microsoft"; }}
+              <Link
+                href={"/account" as never}
+                onClick={() => setMobileOpen(false)}
                 className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-[14px] font-medium text-text-sub text-left">
                 <LogIn size={14} />{locale === "fr" ? "Connexion" : "Login"}
-              </button>
+              </Link>
             )}
             <Link href="/" onClick={() => setMobileOpen(false)} className="block mt-1 btn-primary text-center !py-3">
               {t("play")}

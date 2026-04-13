@@ -32,8 +32,10 @@ export async function GET(req: NextRequest) {
     const msg = e instanceof Error ? e.message : String(e);
     const m = msg.match(/^xsts:\d+:([a-z_]+):/);
     if (m && m[1] !== "unknown") return errorRedirect(req, m[1]);
+    const mt = msg.match(/^ms_token_exchange:(\d+):([^:]+):(.*)$/);
+    if (mt) return errorRedirect(req, "ms_token_exchange_failed", `${mt[2]} — ${mt[3].slice(0, 200)}`);
     if (msg.startsWith("ms_token_exchange")) return errorRedirect(req, "ms_token_exchange_failed");
-    return errorRedirect(req, "xbox_auth_failed");
+    return errorRedirect(req, "xbox_auth_failed", msg.slice(0, 200));
   }
   if (!profile.xuid) return errorRedirect(req, "no_xuid");
 
@@ -65,9 +67,10 @@ export async function GET(req: NextRequest) {
   return res;
 }
 
-function errorRedirect(req: NextRequest, reason: string) {
+function errorRedirect(req: NextRequest, reason: string, detail?: string) {
   const url = new URL("/fr/account", (process.env.SITE_URL || req.nextUrl.origin));
   url.searchParams.set("auth_error", reason);
+  if (detail) url.searchParams.set("auth_error_detail", detail);
   const res = NextResponse.redirect(url);
   res.cookies.delete(STATE_COOKIE);
   res.cookies.delete(RETURN_COOKIE);

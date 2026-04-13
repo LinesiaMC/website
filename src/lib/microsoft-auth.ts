@@ -34,7 +34,14 @@ export async function exchangeMicrosoftCode(params: {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`ms_token_exchange:${res.status}:${body.slice(0, 300)}`);
+    let errCode = "unknown";
+    let errDesc = "";
+    try {
+      const j = JSON.parse(body) as { error?: string; error_description?: string };
+      if (j.error) errCode = j.error;
+      if (j.error_description) errDesc = j.error_description;
+    } catch {}
+    throw new Error(`ms_token_exchange:${res.status}:${errCode}:${errDesc || body.slice(0, 300)}`);
   }
   const j = await res.json() as { access_token?: string };
   if (!j.access_token) throw new Error("ms_no_access_token");
