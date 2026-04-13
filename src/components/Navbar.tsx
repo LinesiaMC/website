@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { Link, usePathname, useRouter } from "@/i18n/routing";
-import { Menu, X, ChevronDown, User, LogIn } from "lucide-react";
+import { Menu, X, ChevronDown, User, LogIn, LogOut, Link2, Eye, LifeBuoy, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface AccountSummary {
   displayName: string | null;
   microsoftGamertag: string | null;
   linkedPlayerName: string | null;
+  linkedPlayerUuid: string | null;
 }
 
 export default function Navbar() {
@@ -19,11 +20,19 @@ export default function Navbar() {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [account, setAccount] = useState<AccountSummary | null>(null);
 
   useEffect(() => {
     fetch("/api/account/me").then((r) => r.json()).then((j) => setAccount(j.account)).catch(() => {});
   }, [pathname]);
+
+  const logout = async () => {
+    setAccountOpen(false);
+    await fetch("/api/account/logout", { method: "POST" });
+    setAccount(null);
+    router.refresh();
+  };
 
   const navLinks = [
     { href: "/" as const, label: t("home") },
@@ -105,15 +114,82 @@ export default function Navbar() {
           </div>
 
           {account ? (
-            <Link
-              href={"/account" as never}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-[10px] border border-border bg-white text-[13px] font-medium text-text hover:border-pink hover:text-pink transition-colors"
-            >
-              <User size={13} />
-              <span className="max-w-[110px] truncate">
-                {account.linkedPlayerName || account.microsoftGamertag || account.displayName || "Compte"}
-              </span>
-            </Link>
+            <div className="relative hidden sm:block">
+              <button
+                onClick={() => setAccountOpen(!accountOpen)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-[10px] border border-border bg-white text-[13px] font-medium text-text hover:border-pink hover:text-pink transition-colors"
+              >
+                <User size={13} />
+                <span className="max-w-[110px] truncate">
+                  {account.linkedPlayerName || account.microsoftGamertag || account.displayName || "Compte"}
+                </span>
+                <ChevronDown size={12} className={`transition-transform ${accountOpen ? "rotate-180" : ""}`} />
+              </button>
+              <AnimatePresence>
+                {accountOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setAccountOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.1 }}
+                      className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-lg border border-border overflow-hidden z-20"
+                    >
+                      <div className="px-4 py-3 border-b border-border">
+                        <p className="text-[13px] font-semibold text-text truncate">
+                          {account.linkedPlayerName || account.microsoftGamertag || account.displayName || "Compte"}
+                        </p>
+                        {account.microsoftGamertag && account.linkedPlayerName && (
+                          <p className="text-[11px] text-text-muted truncate">{account.microsoftGamertag}</p>
+                        )}
+                      </div>
+                      {account.linkedPlayerUuid && (
+                        <Link
+                          href={`/leaderboard/${account.linkedPlayerUuid}` as never}
+                          onClick={() => setAccountOpen(false)}
+                          className="flex items-center gap-2 px-4 py-2.5 text-[13px] text-text hover:bg-bg-soft transition-colors"
+                        >
+                          <Eye size={13} className="text-pink" />
+                          {locale === "fr" ? "Profil public" : "Public profile"}
+                        </Link>
+                      )}
+                      <Link
+                        href={"/account" as never}
+                        onClick={() => setAccountOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-[13px] text-text hover:bg-bg-soft transition-colors"
+                      >
+                        <Settings size={13} className="text-pink" />
+                        {locale === "fr" ? "Gérer mon compte" : "Manage account"}
+                      </Link>
+                      <Link
+                        href={"/account" as never}
+                        onClick={() => setAccountOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-[13px] text-text hover:bg-bg-soft transition-colors"
+                      >
+                        <Link2 size={13} className="text-pink" />
+                        {locale === "fr" ? "Lier Discord / pseudo" : "Link Discord / name"}
+                      </Link>
+                      <Link
+                        href={"/support" as never}
+                        onClick={() => setAccountOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-[13px] text-text hover:bg-bg-soft transition-colors"
+                      >
+                        <LifeBuoy size={13} className="text-pink" />
+                        {locale === "fr" ? "Mes tickets" : "My tickets"}
+                      </Link>
+                      <button
+                        onClick={logout}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-[13px] text-red-500 hover:bg-red-50 transition-colors border-t border-border"
+                      >
+                        <LogOut size={13} />
+                        {locale === "fr" ? "Déconnexion" : "Logout"}
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
           ) : (
             <Link
               href={"/account" as never}
@@ -156,10 +232,30 @@ export default function Navbar() {
               </Link>
             ))}
             {account ? (
-              <Link href={"/account" as never} onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-2 px-4 py-3 rounded-xl text-[14px] font-medium text-text-sub">
-                <User size={14} />{account.linkedPlayerName || account.microsoftGamertag || (locale === "fr" ? "Mon compte" : "Account")}
-              </Link>
+              <>
+                <div className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                  {account.linkedPlayerName || account.microsoftGamertag || (locale === "fr" ? "Mon compte" : "Account")}
+                </div>
+                {account.linkedPlayerUuid && (
+                  <Link href={`/leaderboard/${account.linkedPlayerUuid}` as never} onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-2 px-4 py-3 rounded-xl text-[14px] font-medium text-text-sub">
+                    <Eye size={14} />{locale === "fr" ? "Profil public" : "Public profile"}
+                  </Link>
+                )}
+                <Link href={"/account" as never} onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl text-[14px] font-medium text-text-sub">
+                  <Settings size={14} />{locale === "fr" ? "Gérer mon compte" : "Manage account"}
+                </Link>
+                <Link href={"/support" as never} onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl text-[14px] font-medium text-text-sub">
+                  <LifeBuoy size={14} />{locale === "fr" ? "Mes tickets" : "My tickets"}
+                </Link>
+                <button
+                  onClick={() => { setMobileOpen(false); logout(); }}
+                  className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-[14px] font-medium text-red-500 text-left">
+                  <LogOut size={14} />{locale === "fr" ? "Déconnexion" : "Logout"}
+                </button>
+              </>
             ) : (
               <Link
                 href={"/account" as never}

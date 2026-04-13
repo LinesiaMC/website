@@ -5,18 +5,8 @@ let client: Client | null = null;
 function getClient(): Client {
   if (client) return client;
 
-  // Accept either a Turso URL (libsql://...) or a local SQLite file
-  // (file:./data/linesia.db) via TURSO_DATABASE_URL. A dedicated
-  // DATABASE_URL env is also honored so "VPS with local SQLite" installs
-  // don't have to pretend they use Turso.
-  const url = process.env.DATABASE_URL || process.env.TURSO_DATABASE_URL;
-  const authToken = process.env.TURSO_AUTH_TOKEN;
-
-  if (!url) {
-    throw new Error("DATABASE_URL or TURSO_DATABASE_URL must be set");
-  }
-
-  client = createClient({ url, authToken });
+  const url = process.env.DATABASE_URL || "file:./data/linesia.db";
+  client = createClient({ url });
   return client;
 }
 

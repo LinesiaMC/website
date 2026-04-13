@@ -4,7 +4,7 @@ Public website + staff admin panel for the Linesia Minecraft Bedrock server.
 
 ## Stack
 - **Next.js 15** (App Router), TypeScript, Tailwind v4, next-intl, framer-motion, Chart.js
-- **libSQL/Turso** (or local SQLite via `DATABASE_URL=file:./data/linesia.db`)
+- **libSQL local SQLite** (`DATABASE_URL=file:./data/linesia.db`, défaut si non défini)
 - Auth: Discord OAuth + Microsoft/Xbox OAuth, session cookies (`linesia_staff_session` / `linesia_player_session`)
 - Ingest API consumed by **LinesiaCore** plugin (PocketMine-MP) over HTTP+x-api-key
 
@@ -105,8 +105,7 @@ The plugin (`LinesiaCore`) authenticates every push with `X-Api-Key` matching
 ## Key env vars
 | Var | Purpose | Default |
 |-----|---------|---------|
-| `DATABASE_URL` / `TURSO_DATABASE_URL` | libSQL endpoint | (required) |
-| `TURSO_AUTH_TOKEN` | Turso token if remote | — |
+| `DATABASE_URL` | libSQL endpoint (local SQLite) | `file:./data/linesia.db` |
 | `ANALYTICS_API_KEY` | Shared with plugin for ingest + link verify | (rotate in prod) |
 | `ANALYTICS_API_URL` | URL of analytics backend (used by `/api/analytics/` proxy) | http://localhost:3000 |
 | `ADMIN_PASSWORD` | Legacy article admin password | linesia-admin-2026 |

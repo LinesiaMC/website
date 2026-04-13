@@ -138,7 +138,7 @@ export default function PlayersPage() {
               return (
                 <Link
                   key={p.uuid}
-                  href={`/${locale}/admin/analytics/players/${p.uuid}`}
+                  href={`/${locale}/profile/${p.xuid || p.uuid}`}
                   className="flex items-center gap-4 px-5 py-3.5 hover:bg-bg-soft transition-colors"
                 >
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink to-pink/70 flex items-center justify-center text-white text-[14px] font-bold shrink-0">

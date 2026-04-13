@@ -362,10 +362,9 @@ wiki.sort((a, b) => {
 writeFileSync("data/wiki.json", JSON.stringify(wiki, null, 2), "utf8");
 console.log(`Wiki JSON saved: ${wiki.length} pages`);
 
-// --- 2. Push to Turso DB ---
+// --- 2. Push to local SQLite DB ---
 const db = createClient({
-  url: process.env.TURSO_DATABASE_URL,
-  authToken: process.env.TURSO_AUTH_TOKEN,
+  url: process.env.DATABASE_URL || "file:./data/linesia.db",
 });
 
 // Ensure table exists
@@ -401,5 +400,5 @@ for (const page of wiki) {
   inserted++;
 }
 
-console.log(`Inserted ${inserted} pages into Turso DB`);
+console.log(`Inserted ${inserted} pages into local SQLite DB`);
 console.log("Done!");

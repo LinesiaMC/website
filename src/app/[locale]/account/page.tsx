@@ -317,7 +317,7 @@ function AccountPageInner() {
                 <span className="text-[13px] text-text">
                   {locale === "fr" ? "Lié à" : "Linked to"} <strong>{account.linkedPlayerName}</strong>
                 </span>
-                <Link href={`/${locale}/leaderboard/${account.linkedPlayerUuid}`} className="ml-auto text-[12px] text-pink hover:underline">
+                <Link href={`/${locale}/profile/${account.linkedPlayerUuid}`} className="ml-auto text-[12px] text-pink hover:underline">
                   {locale === "fr" ? "Voir profil public →" : "Public profile →"}
                 </Link>
               </div>

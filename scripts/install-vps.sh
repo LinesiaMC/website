@@ -261,7 +261,3 @@ if [[ "${NO_DOMAIN}" == "1" ]]; then
 else
   log "  3. Check: curl -I https://${DOMAIN}"
 fi
-log "  4. (optional) Migrate Turso data:"
-log "       TURSO_DATABASE_URL=libsql://... TURSO_AUTH_TOKEN=... \\"
-log "       LOCAL_DB_PATH=${DATA_DIR}/linesia.db \\"
-log "       sudo -u ${SERVICE_USER} node ${INSTALL_DIR}/scripts/migrate-turso-to-sqlite.mjs"

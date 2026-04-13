@@ -94,10 +94,11 @@ public/
 
 ## Deployment
 
-Deploy on [Vercel](https://vercel.com) for best Next.js support:
+Self-hosted on VPS. See `scripts/install-vps.sh` for the automated setup.
 
 ```bash
 npm run build
+npm start
 ```
 
 ## Links

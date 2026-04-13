@@ -125,7 +125,7 @@ export default function LeaderboardPage() {
                   <tr key={r.uuid} className="border-b border-border/50 hover:bg-bg-soft/50 transition-colors">
                     <td className="px-4 py-3 font-mono text-text-muted">{page * limit + i + 1}</td>
                     <td className="px-4 py-3">
-                      <Link href={`/${locale}/leaderboard/${r.uuid}`} className="font-semibold text-text hover:text-pink transition-colors">
+                      <Link href={`/${locale}/profile/${r.uuid}`} className="font-semibold text-text hover:text-pink transition-colors">
                         {r.username}
                       </Link>
                       <span className="ml-2 text-[11px] text-text-muted">{r.platform}</span>
