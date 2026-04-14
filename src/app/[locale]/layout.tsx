@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
@@ -30,8 +30,18 @@ export async function generateMetadata({
       url: `https://www.linesia.net/${locale}`,
       locale: locale === "fr" ? "fr_FR" : "en_US",
     },
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      title: "Linesia",
+      statusBarStyle: "default",
+    },
   };
 }
+
+export const viewport: Viewport = {
+  themeColor: "#ec4899",
+};
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));

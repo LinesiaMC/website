@@ -4,6 +4,8 @@ import {
   PLAYER_SESSION_COOKIE, createAccount, createPlayerSession,
   getAccountByMicrosoftId, touchLastLogin, tryAutoLinkByGamertag, updateAccountMicrosoft,
 } from "@/lib/player-auth";
+import { SESSION_COOKIE as STAFF_SESSION_COOKIE, createSession as createStaffSession, touchLastLogin as touchStaffLastLogin } from "@/lib/auth";
+import { getDb, getOne } from "@/lib/analytics-db";
 
 const STATE_COOKIE = "linesia_player_oauth_state";
 const RETURN_COOKIE = "linesia_player_oauth_return";
@@ -57,11 +59,34 @@ export async function GET(req: NextRequest) {
   await touchLastLogin(account.id);
   const { token, expiresAt } = await createPlayerSession(account.id);
 
+  // If this Microsoft identity (or its linked xuid) matches a staff row,
+  // issue a staff session cookie too — staff access follows from the in-game
+  // rank sync, no separate staff login required.
+  const db = await getDb();
+  const xuid = account.linkedPlayerUuid;
+  let staffRow: Record<string, unknown> | null = await getOne(db,
+    "SELECT id FROM staff_users WHERE microsoft_id = ? ORDER BY source = 'manual' DESC LIMIT 1",
+    [profile.xuid]);
+  if (!staffRow && xuid) {
+    staffRow = await getOne(db,
+      "SELECT id FROM staff_users WHERE linked_xuid = ? ORDER BY source = 'manual' DESC LIMIT 1",
+      [xuid]);
+  }
+
   const res = NextResponse.redirect(new URL(returnTo, (process.env.SITE_URL || req.nextUrl.origin)));
   res.cookies.set(PLAYER_SESSION_COOKIE, token, {
     httpOnly: true, secure: req.nextUrl.protocol === "https:", sameSite: "lax",
     path: "/", expires: new Date(expiresAt),
   });
+  if (staffRow) {
+    const staffId = staffRow.id as string;
+    await touchStaffLastLogin(staffId);
+    const { token: sToken, expiresAt: sExp } = await createStaffSession(staffId);
+    res.cookies.set(STAFF_SESSION_COOKIE, sToken, {
+      httpOnly: true, secure: req.nextUrl.protocol === "https:", sameSite: "lax",
+      path: "/", expires: new Date(sExp),
+    });
+  }
   res.cookies.delete(STATE_COOKIE);
   res.cookies.delete(RETURN_COOKIE);
   return res;

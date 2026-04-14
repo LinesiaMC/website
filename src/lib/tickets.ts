@@ -2,7 +2,7 @@ import { randomBytes } from "crypto";
 import { getDb, getAll, getOne, run } from "./analytics-db";
 
 export type TicketCategory = "purchase" | "refund" | "admin" | "report" | "other";
-export type TicketStatus = "open" | "pending" | "closed";
+export type TicketStatus = "open" | "closed";
 
 export const TICKET_CATEGORIES: TicketCategory[] = ["purchase", "refund", "admin", "report", "other"];
 
@@ -124,7 +124,7 @@ export async function listTicketsByAccount(accountId: string): Promise<Ticket[]>
   const db = await getDb();
   const rows = await getAll(db,
     `SELECT * FROM tickets WHERE account_id = ? ORDER BY
-      CASE status WHEN 'open' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+      CASE status WHEN 'open' THEN 0 ELSE 1 END,
       updated_at DESC LIMIT 100`,
     [accountId]);
   return rows.map(rowToTicket);
@@ -157,7 +157,7 @@ export async function listTickets(filters: {
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   const limit = filters.limit ?? 200;
   const rows = await getAll(db, `SELECT * FROM tickets ${where} ORDER BY
-    CASE status WHEN 'open' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+    CASE status WHEN 'open' THEN 0 ELSE 1 END,
     updated_at DESC LIMIT ?`, [...params, limit]);
   return rows.map(rowToTicket);
 }
@@ -205,8 +205,8 @@ export async function addMessage(data: {
           VALUES (?, ?, ?, ?, ?, ?, ?)`,
     args: [data.ticketId, data.authorType, data.authorName, data.authorRole ?? null, data.content, data.isInternal ? 1 : 0, now],
   });
-  await run(db, "UPDATE tickets SET updated_at = ?, status = CASE WHEN status = 'closed' THEN 'closed' ELSE ? END WHERE id = ?",
-    [now, data.authorType === "staff" ? "pending" : "open", data.ticketId]);
+  await run(db, "UPDATE tickets SET updated_at = ?, status = CASE WHEN status = 'closed' THEN 'closed' ELSE 'open' END WHERE id = ?",
+    [now, data.ticketId]);
   return {
     id: Number(result.lastInsertRowid),
     ticketId: data.ticketId,
@@ -226,10 +226,10 @@ export async function getMessages(ticketId: string, includeInternal: boolean): P
   return rows.map(rowToMessage);
 }
 
-export async function ticketStats(): Promise<{ open: number; pending: number; closed: number; total: number }> {
+export async function ticketStats(): Promise<{ open: number; closed: number; total: number }> {
   const db = await getDb();
   const rows = await getAll(db, "SELECT status, COUNT(*) as c FROM tickets GROUP BY status");
-  const out = { open: 0, pending: 0, closed: 0, total: 0 };
+  const out = { open: 0, closed: 0, total: 0 };
   for (const r of rows) {
     const s = r.status as TicketStatus;
     const c = r.c as number;

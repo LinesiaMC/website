@@ -43,7 +43,7 @@ export async function syncStaffFromIngame(params: {
   // Try to resolve a linked website account (player_accounts.linked_player_uuid
   // contains the xuid because /api/account/link/verify stores xuid there).
   const linked = await getOne(db,
-    "SELECT id, microsoft_id, microsoft_gamertag, microsoft_display_name FROM player_accounts WHERE linked_player_uuid = ?",
+    "SELECT id, microsoft_id, microsoft_gamertag, microsoft_display_name, discord_id FROM player_accounts WHERE linked_player_uuid = ?",
     [xuid]);
 
   // Existing ingame-sourced staff row for this xuid?
@@ -51,16 +51,25 @@ export async function syncStaffFromIngame(params: {
     "SELECT id, role, ingame_rank FROM staff_users WHERE source = 'ingame' AND linked_xuid = ?",
     [xuid]);
 
-  // Don't auto-touch a manual row. If a manual row already covers this
-  // microsoft_id, we leave it alone — humans take precedence here.
-  const manualRow = linked?.microsoft_id
-    ? await getOne(db, "SELECT id, role FROM staff_users WHERE source = 'manual' AND microsoft_id = ?", [linked.microsoft_id])
-    : null;
+  // Find a matching manual staff row — try by microsoft_id, linked_xuid, or
+  // the linked player account's discord_id. This lets a Discord-only founder
+  // row get auto-merged with their Microsoft identity on first ingame sync.
+  let manualRow: Record<string, unknown> | null = null;
+  if (linked?.microsoft_id) {
+    manualRow = await getOne(db, "SELECT id, role, microsoft_id, linked_xuid FROM staff_users WHERE source = 'manual' AND microsoft_id = ?", [linked.microsoft_id]);
+  }
+  if (!manualRow) {
+    manualRow = await getOne(db, "SELECT id, role, microsoft_id, linked_xuid FROM staff_users WHERE source = 'manual' AND linked_xuid = ?", [xuid]);
+  }
+  if (!manualRow && linked?.discord_id) {
+    manualRow = await getOne(db, "SELECT id, role, microsoft_id, linked_xuid FROM staff_users WHERE source = 'manual' AND discord_id = ?", [linked.discord_id]);
+  }
 
   // CASE 1: rank is non-staff → ensure no ingame staff row remains.
   if (!targetRole) {
     if (existingIngame) {
       await run(db, "DELETE FROM staff_sessions WHERE staff_id = ?", [existingIngame.id]);
+      await run(db, "DELETE FROM staff_extra_permissions WHERE staff_id = ?", [existingIngame.id]);
       await run(db, "DELETE FROM staff_users WHERE id = ?", [existingIngame.id]);
       recordAudit("ingame-sync", "staff.demote",
         String(existingIngame.id),
@@ -69,12 +78,29 @@ export async function syncStaffFromIngame(params: {
     return;
   }
 
-  // CASE 2: rank IS staff. If a manual row already exists with same/higher role we skip,
-  // but we still update the manual row's ingame_rank for visibility.
+  // CASE 2: rank IS staff. If a manual row already exists, fill in any
+  // missing Microsoft identity + xuid so the row is the single source of
+  // truth for this staff member (no duplicate ingame row).
   if (manualRow) {
+    const msId = (manualRow.microsoft_id as string | null) || (linked?.microsoft_id as string | null) || null;
+    const msGamertag = (linked?.microsoft_gamertag as string) || username;
+    const msDisplayName = (linked?.microsoft_display_name as string) || username;
     await run(db,
-      "UPDATE staff_users SET ingame_rank = ?, linked_xuid = ? WHERE id = ?",
-      [ingameRank, xuid, manualRow.id]);
+      `UPDATE staff_users
+         SET ingame_rank = ?,
+             linked_xuid = ?,
+             microsoft_id = COALESCE(microsoft_id, ?),
+             microsoft_gamertag = COALESCE(microsoft_gamertag, ?),
+             microsoft_display_name = COALESCE(microsoft_display_name, ?)
+         WHERE id = ?`,
+      [ingameRank, xuid, msId, msGamertag, msDisplayName, manualRow.id]);
+    // If a separate ingame-sourced row was previously created for this xuid,
+    // drop it now that the manual row owns the identity.
+    if (existingIngame) {
+      await run(db, "DELETE FROM staff_sessions WHERE staff_id = ?", [existingIngame.id]);
+      await run(db, "DELETE FROM staff_extra_permissions WHERE staff_id = ?", [existingIngame.id]);
+      await run(db, "DELETE FROM staff_users WHERE id = ?", [existingIngame.id]);
+    }
     return;
   }
 

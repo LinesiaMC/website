@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { LifeBuoy, MessageCircle, CheckCircle2, Clock, ShieldAlert } from "lucide-react";
+import { LifeBuoy, MessageCircle, CheckCircle2, ShieldAlert } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { CATEGORY_LABELS, TicketCategory, TicketStatus } from "@/lib/tickets";
 
@@ -40,7 +40,7 @@ export default function TicketsListPage() {
   useEffect(() => { load(); }, [load]);
 
   const stats = useMemo(() => {
-    const s = { open: 0, pending: 0, closed: 0 };
+    const s = { open: 0, closed: 0 };
     for (const t of tickets) s[t.status]++;
     return s;
   }, [tickets]);
@@ -63,15 +63,14 @@ export default function TicketsListPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-2 gap-3 mb-6">
         <StatCard icon={<MessageCircle size={16} />} label={locale === "fr" ? "Ouverts" : "Open"} value={stats.open} color="text-blue-500 bg-blue-50" />
-        <StatCard icon={<Clock size={16} />} label={locale === "fr" ? "En attente" : "Pending"} value={stats.pending} color="text-orange-500 bg-orange-50" />
         <StatCard icon={<CheckCircle2 size={16} />} label={locale === "fr" ? "Fermés" : "Closed"} value={stats.closed} color="text-green-600 bg-green-50" />
       </div>
 
       <div className="mc-card p-4 mb-4 flex flex-wrap items-center gap-2">
         <span className="text-[12px] font-semibold text-text-sub uppercase tracking-wider mr-2">Status</span>
-        {(["open", "pending", "closed", "all"] as const).map((s) => (
+        {(["open", "closed", "all"] as const).map((s) => (
           <button key={s} onClick={() => setStatusFilter(s)}
             className={`text-[12px] px-3 py-1.5 rounded-lg font-medium ${statusFilter === s ? "bg-pink text-white" : "bg-bg-soft text-text-sub hover:bg-border"}`}>
             {s === "all" ? (locale === "fr" ? "Tous" : "All") : s}
@@ -135,7 +134,6 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
 function StatusBadge({ status }: { status: TicketStatus }) {
   const map = {
     open: { label: "open", cls: "bg-blue-50 text-blue-600" },
-    pending: { label: "pending", cls: "bg-orange-50 text-orange-600" },
     closed: { label: "closed", cls: "bg-gray-100 text-gray-600" },
   };
   const m = map[status];

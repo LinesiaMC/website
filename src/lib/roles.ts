@@ -1,8 +1,9 @@
-export type StaffRole = "guide" | "moderator" | "super_moderator" | "admin" | "founder";
+export type StaffRole = "member" | "guide" | "moderator" | "super_moderator" | "admin" | "founder";
 
-export const ROLES: StaffRole[] = ["guide", "moderator", "super_moderator", "admin", "founder"];
+export const ROLES: StaffRole[] = ["member", "guide", "moderator", "super_moderator", "admin", "founder"];
 
 export const ROLE_LABELS: Record<StaffRole, { fr: string; en: string }> = {
+  member: { fr: "Membre", en: "Member" },
   guide: { fr: "Guide", en: "Guide" },
   moderator: { fr: "Modérateur", en: "Moderator" },
   super_moderator: { fr: "Super-Modérateur", en: "Super-Moderator" },
@@ -11,6 +12,7 @@ export const ROLE_LABELS: Record<StaffRole, { fr: string; en: string }> = {
 };
 
 export const ROLE_COLORS: Record<StaffRole, { bg: string; text: string; border: string; hex: string }> = {
+  member:          { bg: "bg-slate-50",   text: "text-slate-600",   border: "border-slate-200",   hex: "#64748B" },
   guide:           { bg: "bg-teal-50",    text: "text-teal-600",    border: "border-teal-200",    hex: "#14B8A6" },
   moderator:       { bg: "bg-green-50",   text: "text-green-800",   border: "border-green-300",   hex: "#166534" },
   super_moderator: { bg: "bg-orange-50",  text: "text-orange-600",  border: "border-orange-200",  hex: "#F97316" },
@@ -19,7 +21,7 @@ export const ROLE_COLORS: Record<StaffRole, { bg: string; text: string; border: 
 };
 
 const ROLE_RANK: Record<StaffRole, number> = {
-  guide: 1, moderator: 2, super_moderator: 3, admin: 4, founder: 5,
+  member: 0, guide: 1, moderator: 2, super_moderator: 3, admin: 4, founder: 5,
 };
 
 export function roleAtLeast(role: StaffRole, min: StaffRole): boolean {
@@ -35,7 +37,6 @@ export type Permission =
   | "tickets.respond"
   | "tickets.close"
   | "tickets.admin_category"
-  | "staff.manage"
   | "permissions.manage"
   | "community.view"
   | "analytics.view";
@@ -44,7 +45,7 @@ export const PERMISSIONS: Permission[] = [
   "articles.manage", "wiki.manage", "roadmap.manage",
   "logs.view", "analytics.view", "community.view",
   "tickets.view", "tickets.respond", "tickets.close", "tickets.admin_category",
-  "staff.manage", "permissions.manage",
+  "permissions.manage",
 ];
 
 export const PERMISSION_LABELS: Record<Permission, { fr: string; en: string; group: string }> = {
@@ -58,7 +59,6 @@ export const PERMISSION_LABELS: Record<Permission, { fr: string; en: string; gro
   "tickets.respond":         { fr: "Répondre aux tickets",     en: "Respond to tickets",     group: "tickets" },
   "tickets.close":           { fr: "Clore les tickets",        en: "Close tickets",          group: "tickets" },
   "tickets.admin_category":  { fr: "Tickets catégorie staff",  en: "Staff-category tickets", group: "tickets" },
-  "staff.manage":            { fr: "Gérer le staff",           en: "Manage staff",           group: "admin" },
   "permissions.manage":      { fr: "Gérer les permissions",    en: "Manage permissions",     group: "admin" },
 };
 
@@ -71,35 +71,41 @@ export const PERMISSION_LABELS: Record<Permission, { fr: string; en: string; gro
  * — this is enforced in code, not via the matrix.
  */
 export const DEFAULT_PERMISSIONS: Record<StaffRole, Record<Permission, boolean>> = {
+  member: {
+    "articles.manage": false, "wiki.manage": false, "roadmap.manage": false,
+    "logs.view": false, "analytics.view": false, "community.view": false,
+    "tickets.view": false, "tickets.respond": false, "tickets.close": false, "tickets.admin_category": false,
+    "permissions.manage": false,
+  },
   guide: {
     "articles.manage": false, "wiki.manage": false, "roadmap.manage": false,
     "logs.view": false, "analytics.view": true, "community.view": true,
     "tickets.view": true, "tickets.respond": true, "tickets.close": false, "tickets.admin_category": false,
-    "staff.manage": false, "permissions.manage": false,
+    "permissions.manage": false,
   },
   moderator: {
     "articles.manage": false, "wiki.manage": true, "roadmap.manage": false,
     "logs.view": true, "analytics.view": true, "community.view": true,
     "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": false,
-    "staff.manage": false, "permissions.manage": false,
+    "permissions.manage": false,
   },
   super_moderator: {
     "articles.manage": true, "wiki.manage": true, "roadmap.manage": true,
     "logs.view": true, "analytics.view": true, "community.view": true,
     "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": false,
-    "staff.manage": false, "permissions.manage": false,
+    "permissions.manage": false,
   },
   admin: {
     "articles.manage": true, "wiki.manage": true, "roadmap.manage": true,
     "logs.view": true, "analytics.view": true, "community.view": true,
     "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": true,
-    "staff.manage": true, "permissions.manage": false,
+    "permissions.manage": false,
   },
   founder: {
     "articles.manage": true, "wiki.manage": true, "roadmap.manage": true,
     "logs.view": true, "analytics.view": true, "community.view": true,
     "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": true,
-    "staff.manage": true, "permissions.manage": true,
+    "permissions.manage": true,
   },
 };
 

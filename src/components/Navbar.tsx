@@ -5,6 +5,8 @@ import { useTranslations, useLocale } from "next-intl";
 import { Link, usePathname, useRouter } from "@/i18n/routing";
 import { Menu, X, ChevronDown, User, LogIn, LogOut, Eye, LifeBuoy, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import InstallPWA from "@/components/InstallPWA";
+import { launchMinecraft } from "@/lib/playMinecraft";
 
 interface AccountSummary {
   id: string;
@@ -42,6 +44,13 @@ export default function Navbar() {
     { href: "/wiki" as const, label: t("wiki") },
     { href: "/support" as const, label: locale === "fr" ? "Support" : "Support" },
   ];
+
+  const onPlay = async () => {
+    const r = await launchMinecraft(locale);
+    if (r === "copied" || r === "error") {
+      try { await navigator.clipboard.writeText("play.linesia.net"); } catch {}
+    }
+  };
 
   const switchLocale = (newLocale: "fr" | "en") => {
     setLangOpen(false);
@@ -191,9 +200,11 @@ export default function Navbar() {
             </Link>
           )}
 
-          <Link href="/" className="btn-primary !py-2 !px-5 !text-[13px] !rounded-[10px] hidden sm:inline-flex">
+          <InstallPWA compact />
+
+          <button onClick={onPlay} className="btn-primary !py-2 !px-5 !text-[13px] !rounded-[10px] hidden sm:inline-flex">
             {t("play")}
-          </Link>
+          </button>
 
           <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden text-text-sub">
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -253,9 +264,11 @@ export default function Navbar() {
                 <LogIn size={14} />{locale === "fr" ? "Connexion" : "Login"}
               </Link>
             )}
-            <Link href="/" onClick={() => setMobileOpen(false)} className="block mt-1 btn-primary text-center !py-3">
+            <button
+              onClick={() => { setMobileOpen(false); void onPlay(); }}
+              className="block w-full mt-1 btn-primary text-center !py-3">
               {t("play")}
-            </Link>
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

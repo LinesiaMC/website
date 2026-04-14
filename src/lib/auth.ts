@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { getDb, getAll, getOne, run } from "./analytics-db";
 import { StaffRole, Permission } from "./roles";
-import { hasPermissionDb } from "./permissions";
+import { hasPermissionForStaff } from "./permissions";
 import { PLAYER_SESSION_COOKIE, getSessionAccount } from "./player-auth";
 
 export const SESSION_COOKIE = "linesia_staff_session";
@@ -139,6 +139,7 @@ export async function updateStaff(id: string, data: Partial<{
 export async function deleteStaff(id: string): Promise<boolean> {
   const db = await getDb();
   await run(db, "DELETE FROM staff_sessions WHERE staff_id = ?", [id]);
+  await run(db, "DELETE FROM staff_extra_permissions WHERE staff_id = ?", [id]);
   await run(db, "DELETE FROM staff_users WHERE id = ?", [id]);
   return true;
 }
@@ -217,7 +218,7 @@ export async function getCurrentStaff(req?: NextRequest): Promise<StaffUser | nu
 export async function requirePermission(req: NextRequest, perm: Permission): Promise<StaffUser | NextResponse> {
   const staff = await getCurrentStaff(req);
   if (!staff) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!(await hasPermissionDb(staff.role, perm))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await hasPermissionForStaff(staff, perm))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   return staff;
 }
 

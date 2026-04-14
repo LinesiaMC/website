@@ -1,7 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, run, getOne, upsertServer } from "@/lib/analytics-db";
+import type { Client } from "@libsql/client";
 import { cacheInvalidate } from "@/lib/query-cache";
 import { syncStaffFromIngame } from "@/lib/staff-sync";
+
+// Map an in-game staff pseudo → linked staff_users row (for cross-source
+// dashboard aggregation). Resolution walks: pseudo → xuid (player_profile_extra)
+// → staff_users.linked_xuid or .microsoft_id → discord_id.
+async function resolveStaffIdentity(db: Client, pseudo: string | null): Promise<{ staff_id: string; staff_name: string }> {
+  const fallback = { staff_id: pseudo || "console", staff_name: pseudo || "Console" };
+  if (!pseudo) return fallback;
+  const row = await getOne(
+    db,
+    `SELECT su.discord_id, su.display_name, su.discord_username, su.microsoft_gamertag
+     FROM staff_users su
+     JOIN player_profile_extra pe ON pe.xuid = su.linked_xuid OR pe.xuid = su.microsoft_id
+     WHERE pe.username = ? LIMIT 1`,
+    [pseudo],
+  );
+  if (!row) return fallback;
+  const discordId = row.discord_id as string | null;
+  const name = (row.display_name || row.discord_username || row.microsoft_gamertag || pseudo) as string;
+  return { staff_id: discordId || pseudo, staff_name: name };
+}
+
+// Insert a sanction (dedup) AND mirror into staff_actions so the staff
+// analytics dashboard aggregates in-game sanctions alongside Discord actions.
+async function recordSanction(db: Client, s: {
+  player_uuid: string; player_name?: string | null; xuid?: string | null;
+  type: string; reason?: string | null; staff?: string | null;
+  duration?: string | null; timestamp?: number | null; server_id?: string | null;
+}): Promise<void> {
+  const ts = s.timestamp || Date.now();
+  const existing = await getOne(db, `SELECT id FROM sanctions WHERE player_uuid = ? AND type = ? AND timestamp = ?`, [s.player_uuid, s.type, ts]);
+  if (existing) return;
+  await run(db,
+    `INSERT INTO sanctions (player_uuid, player_name, xuid, type, reason, staff, duration, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?,?)`,
+    [s.player_uuid, s.player_name || null, s.xuid || null, s.type, s.reason || null, s.staff || null, s.duration || null, ts, s.server_id || null]);
+  const { staff_id, staff_name } = await resolveStaffIdentity(db, s.staff || null);
+  const detail = [s.reason, s.duration ? `duration=${s.duration}` : null].filter(Boolean).join(" | ") || null;
+  await run(db,
+    `INSERT INTO staff_actions (staff_id, staff_name, action, source, target, detail, timestamp) VALUES (?,?,?,?,?,?,?)`,
+    [staff_id, staff_name, s.type, "minecraft", s.player_name || null, detail, ts]);
+}
 
 // Tables whose writes should punch through the analytics read cache. We
 // invalidate broadly via prefixes rather than precise keys — cheap enough
@@ -133,6 +174,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
         await upsertServer(db, server_id, server_name);
         const sid = server_id || null;
 
+        // Sanctions and alias syncs can't share the high-throughput batch path
+        // (they need dedupe + cross-table mirroring) so process them inline first.
+        let hasStaffWrite = false;
+        for (const e of events) {
+          if (e.type === "sanction" && e.player_uuid && e.sanction_type) {
+            await recordSanction(db, {
+              player_uuid: e.player_uuid, player_name: e.player_name, xuid: e.xuid,
+              type: e.sanction_type, reason: e.reason, staff: e.staff,
+              duration: e.duration, timestamp: e.timestamp, server_id: sid,
+            });
+            hasStaffWrite = true;
+          } else if (e.type === "player-aliases" && e.player_uuid && Array.isArray(e.aliases)) {
+            const now = Date.now();
+            const aliasStmts: Array<{ sql: string; args: unknown[] }> = [
+              { sql: `DELETE FROM player_aliases WHERE player_uuid = ?`, args: [e.player_uuid] },
+            ];
+            for (const alt of e.aliases) {
+              const aliasUuid = alt.uuid || "";
+              if (!aliasUuid) continue;
+              aliasStmts.push({
+                sql: `INSERT INTO player_aliases (player_uuid, player_name, alias_uuid, alias_name, alias_xuid, match_via, updated_at)
+                  VALUES (?, ?, ?, ?, ?, ?, ?)
+                  ON CONFLICT(player_uuid, alias_uuid) DO UPDATE SET alias_name=excluded.alias_name, match_via=excluded.match_via, updated_at=excluded.updated_at`,
+                args: [e.player_uuid, e.player_name || "Unknown", aliasUuid, alt.pseudo || "Unknown", alt.xuid || null, alt.match_via || "", now],
+              });
+            }
+            await db.batch(aliasStmts.map((s) => ({ sql: s.sql, args: s.args as never[] })));
+          }
+        }
+        if (hasStaffWrite) cacheInvalidate(["staff/"]);
+
         // Build one `db.batch()` payload so N events = 1 round-trip to libsql
         // instead of N sequential awaits.
         const stmts: Array<{ sql: string; args: unknown[] }> = [];
@@ -228,13 +300,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
           return NextResponse.json({ error: "player_uuid and type are required" }, { status: 400 });
         }
         await upsertServer(db, server_id, server_name);
-        const ts = timestamp || Date.now();
-        // Skip if already exists (avoid duplicates on repeated syncs)
-        const existing = await getOne(db, `SELECT id FROM sanctions WHERE player_uuid = ? AND type = ? AND timestamp = ?`, [player_uuid, type, ts]);
-        if (!existing) {
-          await run(db, `INSERT INTO sanctions (player_uuid, player_name, xuid, type, reason, staff, duration, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?,?)`,
-            [player_uuid, player_name || null, xuid || null, type, reason || null, staff || null, duration || null, ts, server_id || null]);
-        }
+        await recordSanction(db, { player_uuid, player_name, xuid, type, reason, staff, duration, timestamp, server_id });
+        cacheInvalidate(["staff/"]);
         return NextResponse.json({ success: true });
       }
 

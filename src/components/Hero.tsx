@@ -1,13 +1,28 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { motion } from "framer-motion";
-import { Gamepad2, Users, Clock, ChevronDown } from "lucide-react";
+import { useState } from "react";
+import { useTranslations, useLocale } from "next-intl";
+import { motion, AnimatePresence } from "framer-motion";
+import { Gamepad2, Users, Clock, ChevronDown, Check } from "lucide-react";
 import { useServerStatus } from "@/lib/useServerStatus";
+import { launchMinecraft } from "@/lib/playMinecraft";
 
 export default function Hero() {
   const t = useTranslations("hero");
+  const locale = useLocale();
   const { players, online } = useServerStatus();
+  const [toast, setToast] = useState<string | null>(null);
+
+  const onPlay = async () => {
+    const r = await launchMinecraft(locale);
+    if (r === "copied") {
+      setToast(locale === "fr" ? "IP copiée : play.linesia.net" : "IP copied: play.linesia.net");
+      setTimeout(() => setToast(null), 2500);
+    } else if (r === "error") {
+      setToast(locale === "fr" ? "Copiez : play.linesia.net" : "Copy: play.linesia.net");
+      setTimeout(() => setToast(null), 2500);
+    }
+  };
 
   return (
     <section className="pt-32 pb-20 bg-white">
@@ -53,7 +68,7 @@ export default function Hero() {
           transition={{ duration: 0.5, delay: 0.15 }}
           className="flex flex-col sm:flex-row gap-3 justify-center mb-14"
         >
-          <button className="btn-primary !px-8 !py-3">
+          <button onClick={onPlay} className="btn-primary !px-8 !py-3">
             <Gamepad2 size={18} />
             {t("play")}
           </button>
@@ -97,6 +112,20 @@ export default function Hero() {
           <ChevronDown size={24} className="mx-auto text-text-muted animate-bounce [animation-duration:1.5s]" />
         </motion.div>
       </div>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-text text-white text-[13px] font-medium rounded-full px-4 py-2.5 shadow-lg flex items-center gap-2"
+          >
+            <Check size={14} className="text-green" />
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

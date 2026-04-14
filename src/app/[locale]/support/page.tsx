@@ -108,7 +108,6 @@ export default function SupportPage() {
                       className="flex items-center gap-2 p-2.5 rounded-lg border border-border hover:border-pink hover:bg-pink/5 transition-colors">
                       <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
                         t.status === "open" ? "bg-blue-50 text-blue-600" :
-                        t.status === "pending" ? "bg-orange-50 text-orange-600" :
                         "bg-gray-100 text-gray-600"
                       }`}>{t.status}</span>
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-50 text-violet-600">{CATEGORY_LABELS[t.category].fr}</span>

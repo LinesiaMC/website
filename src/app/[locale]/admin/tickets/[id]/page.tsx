@@ -278,7 +278,6 @@ function MessageBubble({ msg }: { msg: Message }) {
 function StatusBadge({ status }: { status: TicketStatus }) {
   const map = {
     open: "bg-blue-50 text-blue-600",
-    pending: "bg-orange-50 text-orange-600",
     closed: "bg-gray-100 text-gray-600",
   };
   return <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${map[status]}`}>{status}</span>;

@@ -101,3 +101,72 @@ export async function bulkSetPermissions(
     await setPermission({ ...c, actor });
   }
 }
+
+// =================================================================
+// Per-staff extra permissions (overlays role defaults for individuals
+// who need one-off permissions without a full role — e.g. a player
+// allowed to manage the wiki without becoming a moderator).
+// =================================================================
+
+export async function listStaffExtras(staffId: string): Promise<Permission[]> {
+  const db = await getDb();
+  const rows = await getAll(db,
+    "SELECT permission FROM staff_extra_permissions WHERE staff_id = ? AND allowed = 1",
+    [staffId]);
+  return rows
+    .map((r) => r.permission as Permission)
+    .filter((p): p is Permission => PERMISSIONS.includes(p));
+}
+
+export async function listAllExtras(): Promise<Record<string, Permission[]>> {
+  const db = await getDb();
+  const rows = await getAll(db,
+    "SELECT staff_id, permission FROM staff_extra_permissions WHERE allowed = 1");
+  const out: Record<string, Permission[]> = {};
+  for (const r of rows) {
+    const sid = r.staff_id as string;
+    const p = r.permission as Permission;
+    if (!PERMISSIONS.includes(p)) continue;
+    (out[sid] ||= []).push(p);
+  }
+  return out;
+}
+
+export async function grantStaffExtra(staffId: string, permission: Permission, actor: string): Promise<void> {
+  if (!PERMISSIONS.includes(permission)) throw new Error("invalid_permission");
+  const db = await getDb();
+  await run(db,
+    `INSERT INTO staff_extra_permissions (staff_id, permission, allowed, granted_at, granted_by)
+     VALUES (?, ?, 1, ?, ?)
+     ON CONFLICT(staff_id, permission) DO UPDATE SET
+       allowed = 1, granted_at = excluded.granted_at, granted_by = excluded.granted_by`,
+    [staffId, permission, Date.now(), actor]);
+}
+
+export async function revokeStaffExtra(staffId: string, permission: Permission): Promise<void> {
+  const db = await getDb();
+  await run(db,
+    "DELETE FROM staff_extra_permissions WHERE staff_id = ? AND permission = ?",
+    [staffId, permission]);
+}
+
+export async function revokeAllStaffExtras(staffId: string): Promise<void> {
+  const db = await getDb();
+  await run(db, "DELETE FROM staff_extra_permissions WHERE staff_id = ?", [staffId]);
+}
+
+/** Merges role defaults (+ DB overrides) with per-staff extra grants. */
+export async function getPermissionsForStaff(staff: { id: string; role: StaffRole }): Promise<Record<Permission, boolean>> {
+  const base = await getPermissionsForRole(staff.role);
+  if (staff.role === "founder") return base;
+  const extras = await listStaffExtras(staff.id);
+  for (const p of extras) base[p] = true;
+  return base;
+}
+
+export async function hasPermissionForStaff(staff: { id: string; role: StaffRole }, perm: Permission): Promise<boolean> {
+  if (staff.role === "founder") return true;
+  if (await hasPermissionDb(staff.role, perm)) return true;
+  const extras = await listStaffExtras(staff.id);
+  return extras.includes(perm);
+}

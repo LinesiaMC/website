@@ -328,6 +328,15 @@ export async function getDb(): Promise<Client> {
         updated_by TEXT,
         PRIMARY KEY (role, permission)
       )`,
+      `CREATE TABLE IF NOT EXISTS staff_extra_permissions (
+        staff_id TEXT NOT NULL,
+        permission TEXT NOT NULL,
+        allowed INTEGER NOT NULL DEFAULT 1,
+        granted_at INTEGER NOT NULL,
+        granted_by TEXT,
+        PRIMARY KEY (staff_id, permission)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_extra_perm_staff ON staff_extra_permissions(staff_id)`,
       `CREATE TABLE IF NOT EXISTS staff_audit (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         actor TEXT NOT NULL,
@@ -399,6 +408,13 @@ export async function getDb(): Promise<Client> {
       }
     } catch (e) {
       console.error("[db] tickets.account_id migration failed", e);
+    }
+
+    // --- tickets: collapse legacy 'pending' status into 'open' ---
+    try {
+      await run(db, "UPDATE tickets SET status = 'open' WHERE status = 'pending'");
+    } catch (e) {
+      console.error("[db] tickets.status pending→open migration failed", e);
     }
 
     // --- Staff users schema migration (idempotent) ---
