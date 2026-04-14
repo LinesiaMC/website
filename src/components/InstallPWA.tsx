@@ -27,7 +27,9 @@ export default function InstallPWA({ compact = false }: { compact?: boolean }) {
     }
 
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
+      navigator.serviceWorker.getRegistrations().then((regs) => {
+        regs.forEach((r) => r.unregister().catch(() => {}));
+      }).catch(() => {});
     }
 
     const ua = window.navigator.userAgent;
