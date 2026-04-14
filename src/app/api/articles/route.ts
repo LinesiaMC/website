@@ -12,11 +12,11 @@ export async function POST(req: NextRequest) {
   const auth = await requirePermission(req, "articles.manage");
   if (!isStaffUser(auth)) return auth;
   const body = await req.json();
-  const { title, excerpt, content, date, locale } = body;
+  const { title, excerpt, content, date, locale, image } = body;
   if (!title || !excerpt || !content || !date || !locale) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
-  const article = await createArticle({ title, excerpt, content, date, locale });
+  const article = await createArticle({ title, excerpt, content, date, locale, image: image || "" });
   return NextResponse.json(article, { status: 201 });
 }
 

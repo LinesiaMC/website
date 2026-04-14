@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import Markdown from "@/components/Markdown";
 import {
   Plus,
   Pencil,
@@ -416,9 +415,9 @@ export default function AdminWikiPage() {
                   </button>
                 </div>
                 {preview ? (
-                  <div className="w-full min-h-[400px] p-4 rounded-xl border-2 border-border bg-white wiki-content">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-                  </div>
+                  <Markdown className="w-full min-h-[400px] p-4 rounded-xl border-2 border-border bg-white wiki-content">
+                    {content}
+                  </Markdown>
                 ) : (
                   <textarea
                     value={content}
@@ -494,9 +493,7 @@ export default function AdminWikiPage() {
             </div>
 
             <div className="mc-card p-6">
-              <div className="wiki-content">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{selected.content}</ReactMarkdown>
-              </div>
+              <Markdown>{selected.content}</Markdown>
               {selected.content.trim() === "" && (
                 <p className="text-[13px] text-text-muted italic">Page vide — cliquez sur le crayon pour ajouter du contenu.</p>
               )}

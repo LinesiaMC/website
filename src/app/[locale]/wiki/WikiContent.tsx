@@ -2,8 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import Markdown from "@/components/Markdown";
 import {
   ChevronRight,
   ChevronDown,
@@ -312,11 +311,7 @@ export default function WikiContent({ pages }: { pages: WikiPage[] }) {
               <div className="w-16 h-1 bg-gradient-to-r from-pink to-violet rounded-full mb-6" />
 
               {/* Markdown content */}
-              <div className="wiki-content">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {activePage?.content || ""}
-                </ReactMarkdown>
-              </div>
+              <Markdown>{activePage?.content || ""}</Markdown>
 
               {/* Sub-pages links */}
               {activePage && (() => {

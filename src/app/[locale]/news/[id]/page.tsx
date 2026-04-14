@@ -17,6 +17,7 @@ export async function generateMetadata({
   if (!article) return {};
 
   const url = `${SITE}/${locale}/news/${id}`;
+  const img = article.image || "/images/1024.jpg";
   return {
     title: article.title,
     description: article.excerpt,
@@ -28,13 +29,13 @@ export async function generateMetadata({
       url,
       publishedTime: article.date,
       siteName: "Linesia",
-      images: [{ url: "/images/1024.jpg", width: 1024, height: 1024 }],
+      images: [{ url: img }],
     },
     twitter: {
       card: "summary_large_image",
       title: article.title,
       description: article.excerpt,
-      images: ["/images/1024.jpg"],
+      images: [img],
     },
   };
 }
@@ -59,7 +60,7 @@ export default async function ArticlePage({
     datePublished: article.date,
     dateModified: article.date,
     inLanguage: article.locale,
-    image: [`${SITE}/images/1024.jpg`],
+    image: [`${SITE}${article.image || "/images/1024.jpg"}`],
     mainEntityOfPage: `${SITE}/${locale}/news/${id}`,
     author: { "@type": "Organization", name: "Linesia" },
     publisher: {

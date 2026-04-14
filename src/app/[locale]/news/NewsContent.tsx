@@ -1,15 +1,18 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import Image from "next/image";
 import { useReveal, RevealDiv } from "@/lib/useReveal";
 import { Calendar, ArrowRight, Newspaper } from "lucide-react";
 import { Link } from "@/i18n/routing";
+import { DEFAULT_ARTICLE_IMAGE } from "@/lib/articles";
 
 interface Article {
   id: string;
   title: string;
   excerpt: string;
   date: string;
+  image?: string;
 }
 
 export default function NewsContent({ articles }: { articles: Article[] }) {
@@ -40,8 +43,14 @@ export default function NewsContent({ articles }: { articles: Article[] }) {
                 href={`/news/${article.id}`}
                 className="mc-card overflow-hidden group block h-full"
               >
-                <div className="h-36 bg-bg-soft flex items-center justify-center">
-                  <Newspaper size={28} className="text-text-muted" />
+                <div className="relative h-36 bg-bg-soft overflow-hidden">
+                  <Image
+                    src={article.image || DEFAULT_ARTICLE_IMAGE}
+                    alt=""
+                    fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    className="object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
                 </div>
                 <div className="p-5">
                   <div className="flex items-center gap-2 text-[11px] text-text-muted mb-2.5">

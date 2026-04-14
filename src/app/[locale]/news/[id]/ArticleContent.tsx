@@ -1,9 +1,12 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import Image from "next/image";
 import { motion } from "framer-motion";
-import { Calendar, ArrowLeft, Newspaper } from "lucide-react";
+import { Calendar, ArrowLeft } from "lucide-react";
 import { Link } from "@/i18n/routing";
+import { DEFAULT_ARTICLE_IMAGE } from "@/lib/articles";
+import Markdown from "@/components/Markdown";
 
 interface Article {
   id: string;
@@ -12,6 +15,7 @@ interface Article {
   content: string;
   date: string;
   locale: string;
+  image?: string;
 }
 
 export default function ArticleContent({ article }: { article: Article }) {
@@ -40,9 +44,16 @@ export default function ArticleContent({ article }: { article: Article }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        {/* Image placeholder */}
-        <div className="h-48 sm:h-64 bg-bg-soft rounded-2xl flex items-center justify-center mb-8 border border-border">
-          <Newspaper size={40} className="text-text-muted" />
+        {/* Article image */}
+        <div className="relative h-48 sm:h-64 bg-bg-soft rounded-2xl overflow-hidden mb-8 border border-border">
+          <Image
+            src={article.image || DEFAULT_ARTICLE_IMAGE}
+            alt={article.title}
+            fill
+            sizes="(max-width: 768px) 100vw, 720px"
+            priority
+            className="object-cover"
+          />
         </div>
 
         <div className="flex items-center gap-3 text-[13px] text-text-muted mb-4">
@@ -66,9 +77,9 @@ export default function ArticleContent({ article }: { article: Article }) {
         transition={{ duration: 0.4, delay: 0.1 }}
         className="border-t border-border pt-8"
       >
-        <div className="text-[15px] text-text-sub leading-[1.8] whitespace-pre-line">
+        <Markdown className="wiki-content text-[15px] text-text-sub leading-[1.8]">
           {article.content}
-        </div>
+        </Markdown>
       </motion.div>
 
       {/* Back to news */}
