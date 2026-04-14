@@ -356,19 +356,148 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         );
       }
 
-      case "stats/worlds": {
+      // ==================== JOBS ====================
+      case "stats/jobs": {
         return NextResponse.json(
           await cached(cacheKey, CACHE_TTL, async () => {
-            const sid = q.get("server_id");
-            const sf = serverFilter(sid);
-            const where = sf.where ? `WHERE ${sf.where}` : "";
-            return getAll(
-              db,
-              `SELECT world_name, COUNT(DISTINCT player_uuid) as unique_players,
-                COUNT(*) as total_visits, SUM(duration) as total_time
-               FROM world_visits ${where} GROUP BY world_name ORDER BY unique_players DESC`,
-              sf.params,
-            );
+            // Per-job XP table (copied from plugin JobsConstants::jobs())
+            const JOB_XP: Record<string, Record<string, number>> = {
+              Farmeur: { wheat: 2, beetroot: 2, potatoes: 2, carrots: 2, pumpkin: 2, melon: 2, nether_wart: 10 },
+              Mineur:  { coal_ore: 1, emerald_ore: 2, amethyste_ore: 4, rubis_ore: 6 },
+              Guerrier:{ zombie: 0.2, pigman: 0.3, wither: 0.4, player_kill: 30 },
+              Pecheur: { fish: 4 }, // average across fish types (goldfish5/carp3/perch4/piranha8/red_shrooma10)
+            };
+            const JOB_BASE: Record<string, number> = { Farmeur: 1750, Mineur: 1750, Pecheur: 1750, Guerrier: 500 };
+            const JOB_MULT: Record<string, number> = { Farmeur: 1.2, Mineur: 1.2, Pecheur: 1.2, Guerrier: 1.1 };
+            const MAX_LEVEL = 25;
+
+            const rows = await getAll(db, `SELECT jobs, stats_json FROM player_profile_extra WHERE jobs IS NOT NULL`, []);
+
+            type JobAgg = {
+              name: string;
+              players: number;
+              totalLevel: number;
+              maxedCount: number;
+              levelHistogram: number[]; // length MAX_LEVEL+1
+              totalCurrentXp: number;
+              totalLifetimeXp: number;
+            };
+            const jobs: Record<string, JobAgg> = {};
+            const sourceCounts: Record<string, Record<string, number>> = {};
+            let playersKillsTotal = 0;
+
+            const lifetimeXpFor = (jobName: string, level: number, currentXp: number): number => {
+              const base = JOB_BASE[jobName] ?? 1750;
+              const mult = JOB_MULT[jobName] ?? 1.2;
+              let sum = 0;
+              for (let L = 1; L < level; L++) sum += base * Math.pow(mult, L - 1);
+              return sum + (currentXp || 0);
+            };
+
+            for (const r of rows as Array<Record<string, unknown>>) {
+              let pjobs: Array<{ name: string; level: number; xp: number; max_xp: number }> = [];
+              try { pjobs = JSON.parse(String(r.jobs || "[]")); } catch { /* ignore */ }
+
+              let stats: Record<string, number> = {};
+              try { stats = JSON.parse(String(r.stats_json || "{}")); } catch { /* ignore */ }
+              playersKillsTotal += Number(stats.kills || 0);
+
+              for (const j of pjobs) {
+                if (!j?.name) continue;
+                const agg = jobs[j.name] ??= {
+                  name: j.name, players: 0, totalLevel: 0, maxedCount: 0,
+                  levelHistogram: new Array(MAX_LEVEL + 1).fill(0),
+                  totalCurrentXp: 0, totalLifetimeXp: 0,
+                };
+                agg.players++;
+                const lvl = Math.max(0, Math.min(MAX_LEVEL, Number(j.level) || 0));
+                agg.totalLevel += lvl;
+                if (lvl >= MAX_LEVEL) agg.maxedCount++;
+                agg.levelHistogram[lvl]++;
+                agg.totalCurrentXp += Number(j.xp) || 0;
+                agg.totalLifetimeXp += lifetimeXpFor(j.name, lvl, Number(j.xp) || 0);
+
+                // XP-source estimation from stats snapshot
+                const srcTable = JOB_XP[j.name];
+                if (srcTable) {
+                  const bySrc = sourceCounts[j.name] ??= {};
+                  for (const [src, xpPerUnit] of Object.entries(srcTable)) {
+                    let count = 0;
+                    if (src === "player_kill") count = Number(stats.kills || 0);
+                    else count = Number(stats[src] || 0);
+                    bySrc[src] = (bySrc[src] || 0) + count * xpPerUnit;
+                  }
+                }
+              }
+            }
+
+            const jobList = Object.values(jobs).map((j) => ({
+              name: j.name,
+              players: j.players,
+              avg_level: j.players ? +(j.totalLevel / j.players).toFixed(2) : 0,
+              maxed_count: j.maxedCount,
+              avg_current_xp: j.players ? Math.round(j.totalCurrentXp / j.players) : 0,
+              avg_lifetime_xp: j.players ? Math.round(j.totalLifetimeXp / j.players) : 0,
+              total_lifetime_xp: Math.round(j.totalLifetimeXp),
+              level_histogram: j.levelHistogram,
+              xp_by_source: Object.entries(sourceCounts[j.name] || {})
+                .map(([source, xp]) => ({ source, xp: Math.round(xp) }))
+                .sort((a, b) => b.xp - a.xp),
+            }));
+
+            return { jobs: jobList, total_players: rows.length, max_level: MAX_LEVEL };
+          }),
+        );
+      }
+
+      // ==================== PRESTIGE ====================
+      case "stats/prestige": {
+        return NextResponse.json(
+          await cached(cacheKey, CACHE_TTL, async () => {
+            const TOTAL_QUESTS = 111; // see PrestigesManager::$defaultQuest
+
+            const [dist, quests, avg] = await Promise.all([
+              getAll(db, `SELECT prestige, COUNT(*) as count FROM player_profile_extra WHERE xuid IS NOT NULL GROUP BY prestige ORDER BY prestige ASC`, []),
+              getAll(db, `SELECT completed_quests FROM player_profile_extra WHERE completed_quests IS NOT NULL`, []),
+              getOne(db, `SELECT AVG(prestige) as avg_prestige, MAX(prestige) as max_prestige, COUNT(*) as total_players FROM player_profile_extra WHERE xuid IS NOT NULL`, []),
+            ]);
+
+            const questCount: Record<string, number> = {};
+            let totalQuestsCompleted = 0;
+            let playersWithQuests = 0;
+            for (const r of quests as Array<Record<string, unknown>>) {
+              let arr: string[] = [];
+              try { arr = JSON.parse(String(r.completed_quests || "[]")); } catch { /* ignore */ }
+              if (!Array.isArray(arr) || arr.length === 0) continue;
+              playersWithQuests++;
+              totalQuestsCompleted += arr.length;
+              for (const k of arr) questCount[k] = (questCount[k] || 0) + 1;
+            }
+
+            const categoryCount: Record<string, { completed: number; total: number }> = {};
+            for (const [key, count] of Object.entries(questCount)) {
+              const cat = key.replace(/\d+$/, "");
+              const entry = categoryCount[cat] ??= { completed: 0, total: 0 };
+              entry.completed += count;
+              entry.total += 1;
+            }
+
+            return {
+              distribution: dist,
+              avg_prestige: Number((avg as Record<string, number>)?.avg_prestige) || 0,
+              max_prestige: Number((avg as Record<string, number>)?.max_prestige) || 0,
+              total_players: Number((avg as Record<string, number>)?.total_players) || 0,
+              total_quests: TOTAL_QUESTS,
+              total_quests_completed: totalQuestsCompleted,
+              players_with_quests: playersWithQuests,
+              avg_quests_per_player: playersWithQuests ? +(totalQuestsCompleted / playersWithQuests).toFixed(1) : 0,
+              quest_counts: Object.entries(questCount)
+                .map(([key, count]) => ({ key, count }))
+                .sort((a, b) => b.count - a.count),
+              category_counts: Object.entries(categoryCount)
+                .map(([category, v]) => ({ category, completed: v.completed, tiers: v.total }))
+                .sort((a, b) => b.completed - a.completed),
+            };
           }),
         );
       }

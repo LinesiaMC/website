@@ -6,9 +6,9 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   LogOut, Newspaper, BarChart3, Users, TrendingUp,
-  Globe, ScrollText, ChevronLeft, ChevronRight, LayoutDashboard,
+  ScrollText, ChevronLeft, ChevronRight, LayoutDashboard,
   Coins, Dices, Gem, Box, Shield, MessageSquare, Fingerprint, BookOpen,
-  LifeBuoy, UserCircle2, Map, LogIn, User,
+  LifeBuoy, UserCircle2, Map, LogIn, User, Briefcase, Award,
 } from "lucide-react";
 import { AdminContext, CurrentStaff } from "@/components/admin/AdminContext";
 import { hasPermission, Permission, ROLE_LABELS, ROLE_COLORS } from "@/lib/roles";
@@ -24,7 +24,8 @@ const NAV_ITEMS: { key: string; icon: typeof Newspaper; path: string; perm: Perm
   { key: "dashboard",  icon: LayoutDashboard, path: "/admin/analytics",                 perm: "analytics.view" },
   { key: "players",    icon: Users,           path: "/admin/analytics/players",         perm: "analytics.view" },
   { key: "retention",  icon: TrendingUp,      path: "/admin/analytics/retention",       perm: "analytics.view" },
-  { key: "worlds",     icon: Globe,           path: "/admin/analytics/worlds",          perm: "analytics.view" },
+  { key: "jobs",       icon: Briefcase,       path: "/admin/analytics/jobs",            perm: "analytics.view" },
+  { key: "prestige",   icon: Award,           path: "/admin/analytics/prestige",        perm: "analytics.view" },
   { key: "economy",    icon: Coins,           path: "/admin/analytics/economy",         perm: "analytics.view" },
   { key: "items",      icon: Gem,             path: "/admin/analytics/items",           perm: "analytics.view" },
   { key: "itemTrace",  icon: Fingerprint,     path: "/admin/analytics/items/trace",     perm: "analytics.view" },
@@ -46,7 +47,8 @@ const NAV_LABELS: Record<string, { fr: string; en: string }> = {
   dashboard: { fr: "Dashboard", en: "Dashboard" },
   players: { fr: "Joueurs", en: "Players" },
   retention: { fr: "Rétention", en: "Retention" },
-  worlds: { fr: "Mondes", en: "Worlds" },
+  jobs: { fr: "Métiers", en: "Jobs" },
+  prestige: { fr: "Prestige", en: "Prestige" },
   economy: { fr: "Économie", en: "Economy" },
   items: { fr: "Items", en: "Items" },
   itemTrace: { fr: "Tracer Item", en: "Trace Item" },

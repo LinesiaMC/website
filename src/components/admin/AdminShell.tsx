@@ -4,8 +4,8 @@ import { useState, useCallback, useEffect, ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import {
   Lock, LogOut, Newspaper, BarChart3, Users, TrendingUp,
-  Globe, ScrollText, ChevronLeft, ChevronRight, LayoutDashboard, Dices, Coins, Gem, Box,
-  MessageSquare, Fingerprint, Shield,
+  ScrollText, ChevronLeft, ChevronRight, LayoutDashboard, Dices, Coins, Gem, Box,
+  MessageSquare, Fingerprint, Shield, Briefcase, Award,
 } from "lucide-react";
 
 interface AdminShellProps {
@@ -18,7 +18,8 @@ const NAV_ITEMS = [
   { key: "dashboard", icon: LayoutDashboard, path: "/admin/analytics" },
   { key: "players", icon: Users, path: "/admin/analytics/players" },
   { key: "retention", icon: TrendingUp, path: "/admin/analytics/retention" },
-  { key: "worlds", icon: Globe, path: "/admin/analytics/worlds" },
+  { key: "jobs", icon: Briefcase, path: "/admin/analytics/jobs" },
+  { key: "prestige", icon: Award, path: "/admin/analytics/prestige" },
   { key: "economy", icon: Coins, path: "/admin/analytics/economy" },
   { key: "items", icon: Gem, path: "/admin/analytics/items" },
   { key: "itemTrace", icon: Fingerprint, path: "/admin/analytics/items/trace" },
@@ -34,7 +35,8 @@ const NAV_LABELS: Record<string, { fr: string; en: string }> = {
   dashboard: { fr: "Dashboard", en: "Dashboard" },
   players: { fr: "Joueurs", en: "Players" },
   retention: { fr: "Retention", en: "Retention" },
-  worlds: { fr: "Mondes", en: "Worlds" },
+  jobs: { fr: "Métiers", en: "Jobs" },
+  prestige: { fr: "Prestige", en: "Prestige" },
   economy: { fr: "Economie", en: "Economy" },
   items: { fr: "Items", en: "Items" },
   itemTrace: { fr: "Tracer Item", en: "Trace Item" },
