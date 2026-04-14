@@ -61,16 +61,16 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="fixed top-[26px] left-1/2 -translate-x-1/2 z-50 w-[94%] max-w-[1033px]">
-      <div className="bg-white rounded-2xl shadow-lg border border-border px-5 h-[60px] flex items-center justify-between">
+    <nav className="fixed top-[26px] left-1/2 -translate-x-1/2 z-50 w-[94%] max-w-[1200px]">
+      <div className="bg-white rounded-2xl shadow-lg border border-border px-5 h-[60px] flex items-center justify-between gap-3">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 shrink-0">
           <img src="/images/1024.jpg" alt="Linesia" className="w-8 h-8 rounded-lg" />
-          <span className="font-semibold text-[15px] text-text hidden sm:block">Linesia</span>
+          <span className="font-semibold text-[15px] text-text hidden sm:block xl:hidden 2xl:block">Linesia</span>
         </Link>
 
         {/* Center nav */}
-        <div className="hidden lg:flex items-center gap-6">
+        <div className="hidden xl:flex items-center gap-5">
           {navLinks.map((link) => (
             <Link
               key={link.href}
@@ -209,7 +209,7 @@ export default function Navbar() {
             {t("play")}
           </button>
 
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden text-text-sub">
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="xl:hidden text-text-sub">
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
@@ -222,7 +222,7 @@ export default function Navbar() {
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            className="mt-2 bg-white rounded-2xl shadow-lg border border-border p-2 lg:hidden"
+            className="mt-2 bg-white rounded-2xl shadow-lg border border-border p-2 xl:hidden"
           >
             {navLinks.map((link) => (
               <Link
