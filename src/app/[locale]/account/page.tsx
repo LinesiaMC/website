@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { User, LogIn, LogOut, Link as LinkIcon, Unlink, Check, Copy, Clock, Coins, Skull, Dice5, Users as UsersIcon, Activity } from "lucide-react";
+import { User, LogIn, LogOut, Link as LinkIcon, Unlink, Check, Copy, Activity } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -20,17 +20,6 @@ interface Account {
   linkCodeExpires: number | null;
   displayName: string | null;
 }
-interface Stats {
-  username: string;
-  platform: string;
-  totalPlaytime: number;
-  sessionCount: number;
-  money: number | null;
-  casinoNet: number | null;
-  deaths: number;
-  lastSeen: number;
-}
-
 function authErrorLabel(code: string, locale: string): string {
   const fr = locale === "fr";
   const map: Record<string, { fr: string; en: string }> = {
@@ -100,13 +89,6 @@ function authErrorLabel(code: string, locale: string): string {
   return (fr ? "Erreur d'authentification : " : "Auth error: ") + code;
 }
 
-function fmtDur(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
-  if (h >= 24) return `${Math.floor(h / 24)}j ${h % 24}h`;
-  return `${h}h ${m}m`;
-}
-
 export default function AccountPage() {
   return (
     <main>
@@ -131,7 +113,6 @@ function AccountPageInner() {
   const authError = sp.get("auth_error");
   const authErrorDetail = sp.get("auth_error_detail");
   const [account, setAccount] = useState<Account | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [pseudo, setPseudo] = useState("");
   const [linkResult, setLinkResult] = useState<{ code?: string; command?: string; autoLinked?: boolean; name?: string } | null>(null);
@@ -143,7 +124,6 @@ function AccountPageInner() {
     fetch("/api/account/me").then(async (r) => {
       const j = await r.json();
       setAccount(j.account);
-      setStats(j.stats);
       setLoading(false);
     });
   }, []);
@@ -368,41 +348,8 @@ function AccountPageInner() {
           )}
         </div>
 
-        {/* Stats */}
-        {linked && stats && (
-          <div>
-            <h2 className="text-[14px] font-bold text-text mb-3">{locale === "fr" ? "Mes stats en jeu" : "My in-game stats"}</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <MiniStat icon={Clock}      label={locale === "fr" ? "Temps de jeu" : "Playtime"} value={fmtDur(stats.totalPlaytime)} />
-              <MiniStat icon={UsersIcon}  label="Sessions" value={stats.sessionCount.toLocaleString()} />
-              <MiniStat icon={Coins}      label={locale === "fr" ? "Solde" : "Balance"} value={stats.money != null ? stats.money.toLocaleString() : "—"} />
-              <MiniStat icon={Dice5}      label={locale === "fr" ? "Casino" : "Casino"} value={stats.casinoNet != null ? stats.casinoNet.toLocaleString() : "—"} />
-              <MiniStat icon={Skull}      label={locale === "fr" ? "Morts" : "Deaths"} value={stats.deaths.toLocaleString()} />
-            </div>
-          </div>
-        )}
-
-        <div className="mc-card p-5">
-          <h2 className="text-[14px] font-bold text-text mb-2">{locale === "fr" ? "Mes tickets" : "My tickets"}</h2>
-          <p className="text-[12px] text-text-sub mb-3">
-            {locale === "fr" ? "Ouvre un ticket pour contacter le staff." : "Open a ticket to contact staff."}
-          </p>
-          <Link href={`/${locale}/support`} className="btn-primary !py-2 !px-4 !text-[13px] inline-flex">
-            {locale === "fr" ? "Ouvrir un ticket" : "Open a ticket"}
-          </Link>
-        </div>
       </div>
     </div>
   );
 }
 
-function MiniStat({ icon: Icon, label, value }: { icon: React.ComponentType<{ size?: number; className?: string }>; label: string; value: string }) {
-  return (
-    <div className="mc-card p-4">
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-text-sub uppercase tracking-wider mb-1">
-        <Icon size={12} className="text-pink" />{label}
-      </div>
-      <div className="text-lg font-bold text-text">{value}</div>
-    </div>
-  );
-}

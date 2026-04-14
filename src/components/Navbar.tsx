@@ -41,6 +41,7 @@ export default function Navbar() {
     { href: "/" as const, label: t("home") },
     { href: "/news" as const, label: t("news") },
     { href: "/leaderboard" as const, label: "Tracker" },
+    { href: "/vote" as const, label: "Vote" },
     { href: "/wiki" as const, label: t("wiki") },
     { href: "/support" as const, label: locale === "fr" ? "Support" : "Support" },
   ];
