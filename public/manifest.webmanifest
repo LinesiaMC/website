@@ -1,11 +1,15 @@
 {
-  "name": "Linesia - Serveur Minecraft Bedrock",
+  "id": "/",
+  "name": "Linesia — Serveur Minecraft Bedrock FR",
   "short_name": "Linesia",
-  "description": "Linesia, le serveur Minecraft Bedrock unique. SkyFaction, KitFFA et bien plus.",
+  "description": "Linesia, le serveur Minecraft Bedrock FR : SkyFaction, KitFFA, Kitmap, PvP Faction. Jouable sur PC, mobile et console.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
+  "lang": "fr",
+  "dir": "ltr",
+  "categories": ["games", "entertainment", "social"],
   "background_color": "#ffffff",
   "theme_color": "#ec4899",
   "icons": [

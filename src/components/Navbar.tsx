@@ -42,6 +42,8 @@ export default function Navbar() {
     { href: "/news" as const, label: t("news") },
     { href: "/leaderboard" as const, label: "Tracker" },
     { href: "/vote" as const, label: "Vote" },
+    { href: "/community" as const, label: locale === "fr" ? "Communauté" : "Community" },
+    { href: "/parrainage" as const, label: locale === "fr" ? "Parrainage" : "Referral" },
     { href: "/wiki" as const, label: t("wiki") },
     { href: "/support" as const, label: locale === "fr" ? "Support" : "Support" },
   ];

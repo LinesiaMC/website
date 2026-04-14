@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { User, LogIn, LogOut, Link as LinkIcon, Unlink, Check, Copy, Activity } from "lucide-react";
+import { User, LogIn, LogOut, Link as LinkIcon, Unlink, Check, Copy, Activity, Gift, Users } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -348,7 +348,104 @@ function AccountPageInner() {
           )}
         </div>
 
+        {linked && <ReferralPanel locale={locale} />}
+
       </div>
+    </div>
+  );
+}
+
+function ReferralPanel({ locale }: { locale: string }) {
+  const fr = locale === "fr";
+  const [data, setData] = useState<{ code: string; usesCount: number; shareUrl: string; uses: { referredName: string | null; usedAt: number }[] } | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/account/referral/me")
+      .then(r => r.json())
+      .then(setData)
+      .catch(() => {});
+  }, []);
+
+  if (!data) {
+    return (
+      <div className="mc-card p-5">
+        <Activity size={18} className="text-pink animate-pulse mx-auto" />
+      </div>
+    );
+  }
+
+  const copy = async (s: string, which: "code" | "url") => {
+    try { await navigator.clipboard.writeText(s); } catch {}
+    if (which === "code") { setCopiedCode(true); setTimeout(() => setCopiedCode(false), 1500); }
+    else { setCopiedUrl(true); setTimeout(() => setCopiedUrl(false), 1500); }
+  };
+
+  return (
+    <div className="mc-card p-5">
+      <h2 className="text-[14px] font-bold text-text mb-1 flex items-center gap-2">
+        <Gift size={14} className="text-pink" />
+        {fr ? "Mon code de parrainage" : "My referral code"}
+      </h2>
+      <p className="text-[12px] text-text-sub mb-4">
+        {fr
+          ? "Partage ton code. Chaque ami parrainé vous fait gagner tous les deux des récompenses en jeu."
+          : "Share your code. Each referred friend earns both of you in-game rewards."}
+      </p>
+
+      <div className="grid sm:grid-cols-2 gap-3 mb-4">
+        <div>
+          <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-1.5">Code</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 px-3 py-2 bg-white rounded-lg font-mono text-[15px] font-bold text-pink border border-border text-center">
+              {data.code}
+            </code>
+            <button onClick={() => copy(data.code, "code")} className="p-2 rounded-lg border border-border hover:bg-bg-soft">
+              {copiedCode ? <Check size={13} className="text-green-600" /> : <Copy size={13} className="text-text-sub" />}
+            </button>
+          </div>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-1.5">
+            {fr ? "Lien à partager" : "Shareable link"}
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 px-3 py-2 bg-white rounded-lg font-mono text-[11px] text-text-sub border border-border truncate">
+              {data.shareUrl}
+            </code>
+            <button onClick={() => copy(data.shareUrl, "url")} className="p-2 rounded-lg border border-border hover:bg-bg-soft">
+              {copiedUrl ? <Check size={13} className="text-green-600" /> : <Copy size={13} className="text-text-sub" />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-pink/5 border border-pink/20">
+        <div className="flex items-center gap-2 text-[13px] text-text">
+          <Users size={13} className="text-pink" />
+          <strong>{data.usesCount}</strong> {fr ? "parrainages validés" : "validated referrals"}
+        </div>
+        <a href={`/${locale}/parrainage`} className="text-[12px] text-pink hover:underline">
+          {fr ? "Voir le classement →" : "See leaderboard →"}
+        </a>
+      </div>
+
+      {data.uses.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-border">
+          <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-2">
+            {fr ? "Derniers filleuls" : "Recent referrals"}
+          </p>
+          <ul className="text-[12px] space-y-1">
+            {data.uses.slice(0, 5).map((u, i) => (
+              <li key={i} className="flex items-center justify-between text-text-sub">
+                <span>{u.referredName || "—"}</span>
+                <span className="text-text-muted">{new Date(u.usedAt).toLocaleDateString(locale)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
