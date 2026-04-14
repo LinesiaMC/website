@@ -145,13 +145,15 @@ export async function createAccount(data: CreateAccountInput): Promise<PlayerAcc
 export async function tryAutoLinkByGamertag(accountId: string, gamertag: string): Promise<{ uuid: string; name: string } | null> {
   if (!gamertag) return null;
   const db = await getDb();
-  const row = await getOne(db, "SELECT uuid, username FROM players WHERE username = ? COLLATE NOCASE LIMIT 1", [gamertag]);
+  // linked_player_uuid must hold the xuid (legacy column name). Only auto-link
+  // when the players row actually has a xuid recorded.
+  const row = await getOne(db, "SELECT xuid, username FROM players WHERE username = ? COLLATE NOCASE AND xuid IS NOT NULL LIMIT 1", [gamertag]);
   if (!row) return null;
-  const uuid = row.uuid as string, name = row.username as string;
+  const xuid = row.xuid as string, name = row.username as string;
   await run(db,
     "UPDATE player_accounts SET linked_player_uuid = ?, linked_player_name = ? WHERE id = ?",
-    [uuid, name, accountId]);
-  return { uuid, name };
+    [xuid, name, accountId]);
+  return { uuid: xuid, name };
 }
 
 export async function getAccountByDiscordId(discordId: string): Promise<PlayerAccount | null> {

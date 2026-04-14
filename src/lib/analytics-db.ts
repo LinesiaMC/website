@@ -378,6 +378,25 @@ export async function getDb(): Promise<Client> {
       console.error("[db] players.xuid migration failed", e);
     }
 
+    // --- one-shot fix: player_accounts.linked_player_uuid must hold xuid,
+    // but an older auto-link path wrote players.uuid (Bedrock UUID) instead.
+    // Rewrite those rows to the correct xuid when we can resolve one. ---
+    try {
+      await run(db,
+        `UPDATE player_accounts
+           SET linked_player_uuid = (
+             SELECT p.xuid FROM players p
+             WHERE p.uuid = player_accounts.linked_player_uuid AND p.xuid IS NOT NULL
+           )
+         WHERE linked_player_uuid IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM players p
+             WHERE p.uuid = player_accounts.linked_player_uuid AND p.xuid IS NOT NULL
+           )`);
+    } catch (e) {
+      console.error("[db] player_accounts.linked_player_uuid xuid backfill failed", e);
+    }
+
     // --- player_profile_extra: extended columns (idempotent) ---
     try {
       const cols = await getAll(db, "PRAGMA table_info(player_profile_extra)");
