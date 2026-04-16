@@ -110,6 +110,7 @@ export async function getDb(): Promise<Client> {
         item_name TEXT,
         item_count INTEGER,
         item_uid TEXT,
+        item_enchantments TEXT,
         target_player TEXT,
         world TEXT,
         x REAL, y REAL, z REAL,
@@ -426,6 +427,17 @@ export async function getDb(): Promise<Client> {
       await addCol("faction_json", "TEXT");
     } catch (e) {
       console.error("[db] player_profile_extra migration failed", e);
+    }
+
+    // --- logs: add item_enchantments column (idempotent) ---
+    try {
+      const cols = await getAll(db, "PRAGMA table_info(logs)");
+      const names = new Set(cols.map((c) => c.name as string));
+      if (!names.has("item_enchantments")) {
+        await run(db, "ALTER TABLE logs ADD COLUMN item_enchantments TEXT");
+      }
+    } catch (e) {
+      console.error("[db] logs.item_enchantments migration failed", e);
     }
 
     // --- tickets: add account_id column (idempotent) ---

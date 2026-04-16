@@ -4,7 +4,7 @@ import { getDb, getAll, getOne } from "@/lib/analytics-db";
 // Scalar sorts target real columns. Stat sorts go through json_extract on
 // player_profile_extra.stats_json — cheap enough at current player count.
 const SCALAR_SORTS: Record<string, string> = {
-  total_playtime:  "p.total_playtime",
+  total_playtime:  "COALESCE(ppe.playtime, p.total_playtime)",
   session_count:   "p.session_count",
   last_seen:       "p.last_seen",
   first_seen:      "p.first_seen",
@@ -16,7 +16,6 @@ const SCALAR_SORTS: Record<string, string> = {
   power:           "COALESCE(ppe.power, 0)",
   prime:           "COALESCE(ppe.prime, 0)",
   kd_ratio:        "CAST(COALESCE(ppe.kills, 0) AS REAL) / NULLIF(COALESCE(ppe.deaths, 0), 0)",
-  in_playtime:     "COALESCE(ppe.playtime, 0)",
 };
 
 const STAT_SORTS = new Set([
@@ -43,10 +42,12 @@ export async function GET(req: NextRequest) {
   const where = search ? "WHERE p.username LIKE ?" : "";
   const params: unknown[] = search ? [`%${search}%`] : [];
   const rows = await getAll(db,
-    `SELECT p.uuid, p.username, p.platform, p.total_playtime, p.session_count, p.last_seen, p.first_seen,
+    `SELECT p.uuid, p.username, p.platform,
+            COALESCE(ppe.playtime, p.total_playtime) AS total_playtime,
+            p.session_count, p.last_seen, p.first_seen,
             pa.id AS account_id, pa.microsoft_gamertag AS linked_ms_gamertag,
             ppe.rank, ppe.prestige, ppe.money, ppe.power, ppe.prime,
-            ppe.kills, ppe.deaths, ppe.killstreak, ppe.playtime AS in_playtime,
+            ppe.kills, ppe.deaths, ppe.killstreak,
             ppe.faction_json, ppe.stats_json
      FROM players p
      LEFT JOIN player_accounts pa

@@ -411,7 +411,7 @@ export async function getPlayerStats(idOrXuid: string): Promise<PlayerStats | nu
     platform: (p.platform as string) || "Unknown",
     firstSeen: p.first_seen as number,
     lastSeen: p.last_seen as number,
-    totalPlaytime: (p.total_playtime as number) || 0,
+    totalPlaytime: (extra?.playtime as number) || (p.total_playtime as number) || 0,
     sessionCount: (p.session_count as number) || 0,
     money: moneyValue,
     casinoNet: casino ? Number(casino.net) : null,

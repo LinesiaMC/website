@@ -184,7 +184,7 @@ export default function PlayerProfilePage() {
                     )}
                     {stats.extra?.prime != null && (
                       <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-1 rounded">
-                        <Star size={12} />VIP <span className="ml-1 normal-case">{stats.extra.prime}$</span>
+                        <Star size={12} />Prime <span className="ml-1 normal-case">{stats.extra.prime}$</span>
                       </div>
                     )}
                     {link ? (

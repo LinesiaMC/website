@@ -164,7 +164,7 @@ export interface ClaimAttempt {
 }
 
 export type ClaimResult =
-  | { ok: false; error: "invalid_code" | "self" | "already_used" | "too_late" | "not_eligible" }
+  | { ok: false; error: "invalid_code" | "self" | "already_used" | "too_late" | "not_eligible" | "alias" }
   | {
       ok: true;
       referrerXuid: string | null;
@@ -193,6 +193,23 @@ export async function claimReferral(a: ClaimAttempt): Promise<ClaimResult> {
   const referredAccount = await getOne(db,
     "SELECT id FROM player_accounts WHERE linked_player_uuid = ? LIMIT 1", [a.referredXuid]);
   if (referredAccount && referredAccount.id === rc.ownerAccountId) return { ok: false, error: "self" };
+
+  if (referredAccount) {
+    const priorByAccount = await getOne(db,
+      "SELECT id FROM referral_uses WHERE referred_account_id = ? LIMIT 1", [referredAccount.id]);
+    if (priorByAccount) return { ok: false, error: "already_used" };
+  }
+
+  if (rc.ownerXuid) {
+    const aliasHit = await getOne(db,
+      `SELECT 1 AS x FROM player_aliases a
+       LEFT JOIN players p ON p.uuid = a.player_uuid
+       WHERE (p.xuid = ? AND a.alias_xuid = ?)
+          OR (p.xuid = ? AND a.alias_xuid = ?)
+       LIMIT 1`,
+      [rc.ownerXuid, a.referredXuid, a.referredXuid, rc.ownerXuid]);
+    if (aliasHit) return { ok: false, error: "alias" };
+  }
 
   await run(db,
     `INSERT INTO referral_uses

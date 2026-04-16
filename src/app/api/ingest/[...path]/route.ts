@@ -252,10 +252,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
       }
 
       case "log": {
-        const { uuid, player, category, action, detail, item_name, item_count, item_uid, target_player, world, x, y, z, level, timestamp, server_id, server_name, bet_amount, payout, bet_type } = body;
+        const { uuid, player, category, action, detail, item_name, item_count, item_uid, item_enchantments, target_player, world, x, y, z, level, timestamp, server_id, server_name, bet_amount, payout, bet_type } = body;
         await upsertServer(db, server_id, server_name);
-        await run(db, `INSERT INTO logs (player_uuid,player_name,category,action,detail,item_name,item_count,item_uid,target_player,world,x,y,z,level,timestamp,server_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          [uuid || null, player || null, category, action, detail || null, item_name || null, item_count || null, item_uid || null, target_player || null, world || null, x || null, y || null, z || null, level || "info", timestamp || Date.now(), server_id || null]);
+        await run(db, `INSERT INTO logs (player_uuid,player_name,category,action,detail,item_name,item_count,item_uid,item_enchantments,target_player,world,x,y,z,level,timestamp,server_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [uuid || null, player || null, category, action, detail || null, item_name || null, item_count || null, item_uid || null, item_enchantments ? JSON.stringify(item_enchantments) : null, target_player || null, world || null, x || null, y || null, z || null, level || "info", timestamp || Date.now(), server_id || null]);
         if (category === "casino" && uuid && bet_amount != null) {
           const winAmt = payout || 0;
           const betAmt = bet_amount || 0;
@@ -337,8 +337,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
         const stmts: Array<{ sql: string; args: unknown[] }> = [];
         for (const e of entries) {
           stmts.push({
-            sql: `INSERT INTO logs (player_uuid,player_name,category,action,detail,item_name,item_count,item_uid,target_player,world,x,y,z,level,timestamp,server_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-            args: [e.uuid || null, e.player || null, e.category, e.action, e.detail || null, e.item_name || null, e.item_count || null, e.item_uid || null, e.target_player || null, e.world || null, e.x || null, e.y || null, e.z || null, e.level || "info", e.timestamp || Date.now(), server_id || null],
+            sql: `INSERT INTO logs (player_uuid,player_name,category,action,detail,item_name,item_count,item_uid,item_enchantments,target_player,world,x,y,z,level,timestamp,server_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            args: [e.uuid || null, e.player || null, e.category, e.action, e.detail || null, e.item_name || null, e.item_count || null, e.item_uid || null, e.item_enchantments ? JSON.stringify(e.item_enchantments) : null, e.target_player || null, e.world || null, e.x || null, e.y || null, e.z || null, e.level || "info", e.timestamp || Date.now(), server_id || null],
           });
           if (e.category === "casino" && e.uuid && e.bet_amount != null) {
             const winAmt = e.payout || 0;

@@ -2,9 +2,10 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Fingerprint, Search, Activity, MapPin, User, Clock, ArrowRight, Package, AlertTriangle } from "lucide-react";
+import { Fingerprint, Search, Activity, MapPin, User, Clock, ArrowRight, Package, AlertTriangle, Sparkles } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDate } from "@/components/admin/AnalyticsAPI";
+import { enchantmentName, enchantmentLevel, parseEnchantments } from "@/lib/enchantments";
 
 interface LogEntry {
   id: number;
@@ -16,6 +17,7 @@ interface LogEntry {
   item_name: string | null;
   item_count: number | null;
   item_uid: string | null;
+  item_enchantments: string | null;
   target_player: string | null;
   world: string | null;
   x: number | null;
@@ -268,6 +270,21 @@ export default function ItemTracePage() {
                       {log.detail && (
                         <p className="text-[11px] text-text-sub mt-1.5">{log.detail}</p>
                       )}
+
+                      {(() => {
+                        const enchs = parseEnchantments(log.item_enchantments);
+                        if (enchs.length === 0) return null;
+                        return (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                            <Sparkles size={11} className="text-violet" />
+                            {enchs.map((e, i) => (
+                              <span key={i} className="px-1.5 py-0.5 rounded bg-violet/10 text-[11px] font-medium text-violet">
+                                {enchantmentName(e.id)} {enchantmentLevel(e.level)}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}

@@ -13,7 +13,8 @@ export async function POST(req: NextRequest) {
   const code = (body.code || "").trim().toUpperCase();
   const xuid = (body.xuid || "").trim();
   const username = (body.username || "").trim();
-  const firstJoinAt = Number(body.firstJoinAt) || 0;
+  let firstJoinAt = Number(body.firstJoinAt) || 0;
+  if (firstJoinAt > 0 && firstJoinAt < 1e12) firstJoinAt *= 1000;
   if (!code || !xuid || !username) {
     return NextResponse.json({ ok: false, error: "missing_fields" }, { status: 400 });
   }

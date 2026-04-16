@@ -36,12 +36,11 @@ const SORT_GROUPS: { title: { fr: string; en: string }; items: SortOpt[] }[] = [
     title: { fr: "Général", en: "General" },
     items: [
       { key: "total_playtime", fr: "Temps de jeu",       en: "Playtime" },
-      { key: "in_playtime",    fr: "Temps in-game",      en: "In-game time" },
       { key: "session_count",  fr: "Sessions",           en: "Sessions" },
       { key: "last_seen",      fr: "Dernière connexion", en: "Last seen" },
       { key: "first_seen",     fr: "Ancienneté",         en: "Oldest" },
       { key: "prestige",       fr: "Prestige",           en: "Prestige" },
-      { key: "prime",          fr: "VIP",                en: "VIP" },
+      { key: "prime",          fr: "Prime",              en: "Prime" },
     ],
   },
   {
@@ -153,7 +152,6 @@ export default function LeaderboardPage() {
     if (r.stat_value != null) return r.stat_value.toLocaleString();
     switch (sort) {
       case "total_playtime": return formatDuration(r.total_playtime);
-      case "in_playtime":    return formatDuration((r as unknown as { in_playtime?: number }).in_playtime ?? 0);
       case "session_count":  return r.session_count.toLocaleString();
       case "last_seen":      return formatDate(r.last_seen, locale);
       case "first_seen":     return formatDate(r.first_seen, locale);

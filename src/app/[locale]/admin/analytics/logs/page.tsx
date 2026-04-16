@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { ScrollText, Search, Activity, ChevronLeft, ChevronRight, AlertTriangle, Info, X, MapPin, Package, User, Clock, Skull, Swords, Backpack } from "lucide-react";
+import { ScrollText, Search, Activity, ChevronLeft, ChevronRight, AlertTriangle, Info, X, MapPin, Package, User, Clock, Skull, Swords, Backpack, Sparkles } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDate } from "@/components/admin/AnalyticsAPI";
 import { useAutoRefresh } from "@/lib/useAutoRefresh";
+import { enchantmentName, enchantmentLevel, parseEnchantments } from "@/lib/enchantments";
 
 interface LogEntry {
   id: number;
@@ -17,6 +18,7 @@ interface LogEntry {
   item_name: string | null;
   item_count: number | null;
   item_uid: string | null;
+  item_enchantments: string | null;
   target_player: string | null;
   world: string | null;
   x: number | null;
@@ -36,6 +38,31 @@ interface LogStats {
   topItems: { item_name: string; count: number }[];
   topActions: { action: string; count: number }[];
 }
+
+// Canonical list emitted by LinesiaCore's AnalyticsManager. Merged with
+// live counts from /logs/categories so the dropdown still shows categories
+// that haven't been logged yet (otherwise a fresh category is invisible
+// until someone triggers it).
+const KNOWN_CATEGORIES = [
+  "box", "casino", "chat", "command", "connection",
+  "craft", "death", "economy", "item", "trade",
+];
+
+const KNOWN_ACTIONS: Record<string, string[]> = {
+  box: ["Cosmetic", "Commun", "Farm", "Fire", "Ice", "Legendary", "Void"],
+  casino: ["blackjack", "coinflip", "roulette", "rps"],
+  chat: ["Message", "PrivateMessage", "StaffChat", "FactionChat"],
+  connection: ["Join", "Quit"],
+  craft: ["Craft", "Consumed"],
+  death: ["Death", "ItemLost"],
+  economy: ["CashCreate", "CashUse", "MarketBuy", "MarketSell", "Pay", "ShopBuy", "ShopSell"],
+  item: [
+    "Break", "Drop", "PickUp", "Place", "Use", "Creative",
+    "EnderChest", "Furnace", "Armor", "Barrel", "Anvil", "BrewingStand",
+    "Chest", "DoubleChest", "Enchant", "Hopper", "Shulker", "Transaction",
+  ],
+  trade: ["CosmeticTrade", "TradeReceive"],
+};
 
 function parseDeathDetail(detail: string | null): { cause?: string; killer?: string; killer_uuid?: string; victim_inventory?: { name: string; count: number }[]; killer_inventory?: { name: string; count: number }[]; raw?: string } | null {
   if (!detail) return null;
@@ -161,22 +188,35 @@ function LogDetailModal({ log, locale, onClose }: { log: LogEntry; locale: strin
           )}
 
           {/* Item */}
-          {log.item_name && (
-            <div className="flex items-start gap-3">
-              <Package size={14} className="text-text-muted mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[11px] text-text-muted">Item</p>
-                <p className="text-[13px] text-text">
-                  {log.item_name}{log.item_count && log.item_count > 1 ? ` x${log.item_count}` : ""}
-                </p>
-                {log.item_uid && (
-                  <a href={`/${locale}/admin/analytics/items/trace?uid=${log.item_uid}`} className="text-[10px] text-pink font-mono hover:underline" onClick={(e) => e.stopPropagation()}>
-                    UID: {log.item_uid}
-                  </a>
-                )}
+          {log.item_name && (() => {
+            const enchs = parseEnchantments(log.item_enchantments);
+            return (
+              <div className="flex items-start gap-3">
+                <Package size={14} className="text-text-muted mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-[11px] text-text-muted">Item</p>
+                  <p className="text-[13px] text-text">
+                    {log.item_name}{log.item_count && log.item_count > 1 ? ` x${log.item_count}` : ""}
+                  </p>
+                  {log.item_uid && (
+                    <a href={`/${locale}/admin/analytics/items/trace?uid=${log.item_uid}`} className="text-[10px] text-pink font-mono hover:underline" onClick={(e) => e.stopPropagation()}>
+                      UID: {log.item_uid}
+                    </a>
+                  )}
+                  {enchs.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      <Sparkles size={11} className="text-violet" />
+                      {enchs.map((e, i) => (
+                        <span key={i} className="px-1.5 py-0.5 rounded bg-violet/10 text-[11px] font-medium text-violet">
+                          {enchantmentName(e.id)} {enchantmentLevel(e.level)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Location */}
           {log.world && (
@@ -214,11 +254,12 @@ export default function LogsPage() {
   const [total, setTotal] = useState(0);
   const [stats, setStats] = useState<LogStats | null>(null);
   const [page, setPage] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
 
-  // Filters
+  // Filters (raw = what the user types, deb = debounced value used for fetching)
   const [player, setPlayer] = useState("");
   const [category, setCategory] = useState("");
   const [action, setAction] = useState("");
@@ -226,9 +267,27 @@ export default function LogsPage() {
   const [level, setLevel] = useState("");
   const [searchText, setSearchText] = useState("");
 
+  const [debPlayer, setDebPlayer] = useState("");
+  const [debAction, setDebAction] = useState("");
+  const [debItem, setDebItem] = useState("");
+  const [debSearch, setDebSearch] = useState("");
+
   const [categories, setCategories] = useState<{ category: string; count: number }[]>([]);
   const limit = 50;
   const api = useRef(createAnalyticsFetcher(headers)).current;
+
+  // Debounce text inputs so typing doesn't trigger a fetch per keystroke.
+  // Resetting `page` here keeps the user on page 1 when filters change.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebPlayer(player);
+      setDebAction(action);
+      setDebItem(item);
+      setDebSearch(searchText);
+      setPage(0);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [player, action, item, searchText]);
 
   useEffect(() => {
     Promise.all([
@@ -241,39 +300,49 @@ export default function LogsPage() {
   }, [api]);
 
   const fetchLogs = useCallback(() => {
-    setLoading(true);
+    setRefreshing(true);
     const params: Record<string, string> = {
       limit: limit.toString(),
       offset: (page * limit).toString(),
     };
-    if (player) params.player = player;
+    if (debPlayer) params.player = debPlayer;
     if (category) params.category = category;
-    if (action) params.action = action;
-    if (item) params.item = item;
+    if (debAction) params.action = debAction;
+    if (debItem) params.item = debItem;
     if (level) params.level = level;
-    if (searchText) params.search = searchText;
+    if (debSearch) params.search = debSearch;
 
     api("logs", params)
       .then((data) => {
         setLogs(data.logs);
         setTotal(data.total);
-        setLoading(false);
+        setInitialLoading(false);
+        setRefreshing(false);
       })
       .catch(() => {
         setError(locale === "fr" ? "Erreur de chargement" : "Loading error");
-        setLoading(false);
+        setInitialLoading(false);
+        setRefreshing(false);
       });
-  }, [api, page, player, category, action, item, level, searchText, locale]);
+  }, [api, page, debPlayer, category, debAction, debItem, level, debSearch, locale]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
   useAutoRefresh(fetchLogs);
 
   const totalPages = Math.ceil(total / limit);
 
-  const handleSearch = () => {
-    setPage(0);
-    fetchLogs();
-  };
+  // Merge live counts with the canonical list so freshly-added categories
+  // still show up in the dropdown, and known categories keep their count.
+  const mergedCategories = (() => {
+    const seen = new Set(categories.map(c => c.category));
+    const out = [...categories];
+    for (const c of KNOWN_CATEGORIES) {
+      if (!seen.has(c)) out.push({ category: c, count: 0 });
+    }
+    return out;
+  })();
+
+  const actionSuggestions = category && KNOWN_ACTIONS[category] ? KNOWN_ACTIONS[category] : [];
 
   if (error && !stats) {
     return (
@@ -293,10 +362,13 @@ export default function LogsPage() {
         <div className="w-10 h-10 rounded-xl bg-pink flex items-center justify-center">
           <ScrollText size={18} className="text-white" />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-lg font-bold text-text">Logs</h1>
           <p className="text-[12px] text-text-muted">{total} {locale === "fr" ? "entrees" : "entries"}</p>
         </div>
+        {refreshing && !initialLoading && (
+          <Activity size={14} className="text-pink animate-pulse" />
+        )}
       </div>
 
       {/* Stats cards */}
@@ -331,7 +403,6 @@ export default function LogsPage() {
               placeholder={locale === "fr" ? "Recherche..." : "Search..."}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               className="w-full pl-8 pr-3 py-2 rounded-lg border border-border bg-white text-[12px] text-text placeholder:text-text-muted focus:border-pink focus:outline-none"
             />
           </div>
@@ -340,7 +411,6 @@ export default function LogsPage() {
             placeholder={locale === "fr" ? "Joueur" : "Player"}
             value={player}
             onChange={(e) => setPlayer(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             className="px-3 py-2 rounded-lg border border-border bg-white text-[12px] text-text placeholder:text-text-muted focus:border-pink focus:outline-none"
           />
           <select
@@ -349,8 +419,10 @@ export default function LogsPage() {
             className="px-3 py-2 rounded-lg border border-border bg-white text-[12px] text-text focus:border-pink focus:outline-none"
           >
             <option value="">{locale === "fr" ? "Categorie" : "Category"}</option>
-            {categories.map(c => (
-              <option key={c.category} value={c.category}>{c.category} ({c.count})</option>
+            {mergedCategories.map(c => (
+              <option key={c.category} value={c.category}>
+                {c.category}{c.count > 0 ? ` (${c.count})` : ""}
+              </option>
             ))}
           </select>
           <input
@@ -358,15 +430,17 @@ export default function LogsPage() {
             placeholder="Action"
             value={action}
             onChange={(e) => setAction(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            list="log-actions"
             className="px-3 py-2 rounded-lg border border-border bg-white text-[12px] text-text placeholder:text-text-muted focus:border-pink focus:outline-none"
           />
+          <datalist id="log-actions">
+            {actionSuggestions.map(a => <option key={a} value={a} />)}
+          </datalist>
           <input
             type="text"
             placeholder="Item"
             value={item}
             onChange={(e) => setItem(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             className="px-3 py-2 rounded-lg border border-border bg-white text-[12px] text-text placeholder:text-text-muted focus:border-pink focus:outline-none"
           />
           <select
@@ -383,12 +457,12 @@ export default function LogsPage() {
 
       {/* Logs table */}
       <div className="mc-card overflow-hidden">
-        {loading ? (
+        {initialLoading ? (
           <div className="p-12 text-center">
             <Activity size={24} className="text-pink mx-auto animate-pulse" />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className={`overflow-x-auto transition-opacity ${refreshing ? "opacity-60" : ""}`}>
             <table className="w-full text-[12px]">
               <thead>
                 <tr className="border-b border-border bg-bg-soft">
@@ -425,21 +499,30 @@ export default function LogsPage() {
                     <td className="px-3 py-2 text-text-sub">{log.action}</td>
                     <td className="px-3 py-2 text-text-sub max-w-[200px] truncate">{log.detail || "-"}</td>
                     <td className="px-3 py-2 text-text-sub">
-                      {log.item_name ? (
-                        <span>
-                          {log.item_name}
-                          {log.item_count && log.item_count > 1 ? <span className="text-text-muted"> x{log.item_count}</span> : ""}
-                          {log.item_uid && (
-                            <a
-                              href={`/${locale}/admin/analytics/items/trace?uid=${log.item_uid}`}
-                              className="ml-1 text-[10px] text-pink font-mono hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {log.item_uid}
-                            </a>
-                          )}
-                        </span>
-                      ) : "-"}
+                      {log.item_name ? (() => {
+                        const enchs = parseEnchantments(log.item_enchantments);
+                        return (
+                          <span>
+                            {log.item_name}
+                            {log.item_count && log.item_count > 1 ? <span className="text-text-muted"> x{log.item_count}</span> : ""}
+                            {log.item_uid && (
+                              <a
+                                href={`/${locale}/admin/analytics/items/trace?uid=${log.item_uid}`}
+                                className="ml-1 text-[10px] text-pink font-mono hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {log.item_uid}
+                              </a>
+                            )}
+                            {enchs.length > 0 && (
+                              <span className="ml-1 inline-flex items-center gap-0.5 text-[10px] text-violet" title={enchs.map(e => `${enchantmentName(e.id)} ${enchantmentLevel(e.level)}`).join(", ")}>
+                                <Sparkles size={10} />
+                                {enchs.length}
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })() : "-"}
                     </td>
                     <td className="px-3 py-2 text-text-sub">{log.world || "-"}</td>
                     <td className="px-3 py-2 text-text-muted whitespace-nowrap">{formatDate(log.timestamp)}</td>
