@@ -157,6 +157,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     return pathname.startsWith(full);
   };
 
+  const currentNavItem = [...NAV_ITEMS]
+    .sort((a, b) => b.path.length - a.path.length)
+    .find((item) => isActive(item.path));
+  const accessDenied = !!currentNavItem && !can(currentNavItem.perm);
+
   const roleColor = ROLE_COLORS[staff.role];
   const avatarUrl = staff.discordAvatar && staff.discordId
     ? `https://cdn.discordapp.com/avatars/${staff.discordId}/${staff.discordAvatar}.png?size=64`
@@ -237,7 +242,27 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </div>
         </aside>
 
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-auto">
+          {accessDenied ? (
+            <div className="min-h-full flex items-center justify-center p-8">
+              <div className="mc-card p-8 text-center max-w-[420px]">
+                <div className="w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+                  <Shield size={26} className="text-red-500" />
+                </div>
+                <h1 className="text-xl font-bold text-text mb-1">
+                  {locale === "fr" ? "Accès refusé" : "Access denied"}
+                </h1>
+                <p className="text-[13px] text-text-sub">
+                  {locale === "fr"
+                    ? "Tu n'as pas la permission d'accéder à cette page."
+                    : "You don't have permission to access this page."}
+                </p>
+              </div>
+            </div>
+          ) : (
+            children
+          )}
+        </main>
       </div>
     </AdminContext.Provider>
   );
