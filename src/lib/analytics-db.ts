@@ -349,15 +349,18 @@ export async function getDb(): Promise<Client> {
       `CREATE INDEX IF NOT EXISTS idx_staff_audit_ts ON staff_audit(timestamp)`,
     ]);
 
-    // --- articles: image column (idempotent) ---
+    // --- articles: image + published columns (idempotent) ---
     try {
       const cols = await getAll(db, "PRAGMA table_info(articles)");
       const names = new Set(cols.map((c) => c.name as string));
       if (!names.has("image")) {
         await run(db, "ALTER TABLE articles ADD COLUMN image TEXT NOT NULL DEFAULT ''");
       }
+      if (!names.has("published")) {
+        await run(db, "ALTER TABLE articles ADD COLUMN published INTEGER NOT NULL DEFAULT 1");
+      }
     } catch (e) {
-      console.error("[db] articles.image migration failed", e);
+      console.error("[db] articles migration failed", e);
     }
 
     // --- staff_users: source + ingame_rank columns (idempotent) ---

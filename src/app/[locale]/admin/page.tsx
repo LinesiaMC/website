@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { useParams } from "next/navigation";
-import { Plus, Pencil, Trash2, Newspaper, X, Save, Upload, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, Newspaper, X, Save, Upload, Check, Eye, EyeOff, Send } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { ARTICLE_IMAGE_PRESETS, DEFAULT_ARTICLE_IMAGE } from "@/lib/articles";
 
@@ -15,6 +15,7 @@ interface Article {
   date: string;
   locale: "fr" | "en";
   image: string;
+  published: boolean;
 }
 
 export default function AdminPage() {
@@ -41,6 +42,11 @@ export default function AdminPage() {
       uploading: { fr: "Envoi...", en: "Uploading..." },
       presets: { fr: "Images Linesia", en: "Linesia images" },
       save: { fr: "Enregistrer", en: "Save" },
+      saveDraft: { fr: "Enregistrer le brouillon", en: "Save draft" },
+      publish: { fr: "Publier", en: "Publish" },
+      unpublish: { fr: "Depublier", en: "Unpublish" },
+      draft: { fr: "Brouillon", en: "Draft" },
+      published: { fr: "Publie", en: "Published" },
       cancel: { fr: "Annuler", en: "Cancel" },
     };
     return labels[key]?.[locale] || labels[key]?.en || key;
@@ -61,6 +67,15 @@ export default function AdminPage() {
     }
     setEditing(null);
     setCreating(false);
+    fetchArticles();
+  };
+
+  const handleTogglePublish = async (article: Article) => {
+    await fetch("/api/articles", {
+      method: "PUT",
+      headers: headers(),
+      body: JSON.stringify({ id: article.id, published: !article.published }),
+    });
     fetchArticles();
   };
 
@@ -124,11 +139,31 @@ export default function AdminPage() {
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-[11px] font-bold text-pink uppercase">{article.locale}</span>
                   <span className="text-[11px] text-text-muted">{article.date}</span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
+                      article.published
+                        ? "bg-green-100 text-green-700"
+                        : "bg-yellow-100 text-yellow-800"
+                    }`}
+                  >
+                    {article.published ? t("published") : t("draft")}
+                  </span>
                 </div>
                 <h3 className="text-[14px] font-semibold text-text truncate">{article.title}</h3>
                 <p className="text-[12px] text-text-sub truncate">{article.excerpt}</p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => handleTogglePublish(article)}
+                  title={article.published ? t("unpublish") : t("publish")}
+                  className={`p-2 rounded-lg transition-colors ${
+                    article.published
+                      ? "text-text-sub hover:bg-yellow-50 hover:text-yellow-700"
+                      : "text-text-sub hover:bg-green-50 hover:text-green-700"
+                  }`}
+                >
+                  {article.published ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
                 <button
                   onClick={() => setEditing(article)}
                   className="p-2 rounded-lg hover:bg-bg-soft text-text-sub hover:text-pink transition-colors"
@@ -165,6 +200,7 @@ function ArticleForm({
   const [date, setDate] = useState(article?.date || new Date().toISOString().split("T")[0]);
   const [locale, setLocale] = useState<"fr" | "en">(article?.locale || "fr");
   const [image, setImage] = useState(article?.image || "");
+  const [published, setPublished] = useState<boolean>(article?.published ?? false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -191,8 +227,10 @@ function ArticleForm({
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (publishOverride?: boolean) => {
     if (!title.trim() || !excerpt.trim() || !content.trim()) return;
+    const nextPublished = publishOverride ?? published;
+    setPublished(nextPublished);
     onSave({
       ...(article ? { id: article.id } : {}),
       title: title.trim(),
@@ -201,15 +239,25 @@ function ArticleForm({
       date,
       locale,
       image: image.trim(),
+      published: nextPublished,
     });
   };
 
   return (
     <div className="max-w-[700px] mx-auto px-6 py-8">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-lg font-bold text-text">
-          {article ? t("editArticle") : t("addArticle")}
-        </h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-bold text-text">
+            {article ? t("editArticle") : t("addArticle")}
+          </h1>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
+              published ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-800"
+            }`}
+          >
+            {published ? t("published") : t("draft")}
+          </span>
+        </div>
         <button onClick={onCancel} className="p-2 rounded-lg hover:bg-white text-text-sub">
           <X size={18} />
         </button>
@@ -314,9 +362,33 @@ function ArticleForm({
           <label className="text-[12px] font-semibold text-text-sub mb-1.5 block uppercase tracking-wider">{t("contentField")}</label>
           <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Contenu complet de l'article..." rows={10} className="w-full px-3 py-2.5 rounded-xl border-2 border-border bg-white text-[14px] text-text placeholder:text-text-muted focus:border-pink focus:outline-none resize-y" />
         </div>
-        <div className="flex items-center justify-end gap-2 pt-2">
+        <div className="flex items-center justify-between gap-2 pt-2">
           <button onClick={onCancel} className="btn-ghost !py-2 !px-5 !text-[13px]">{t("cancel")}</button>
-          <button onClick={handleSubmit} className="btn-primary !py-2 !px-5 !text-[13px]"><Save size={14} />{t("save")}</button>
+          <div className="flex items-center gap-2">
+            {published ? (
+              <button
+                onClick={() => handleSubmit(false)}
+                className="btn-ghost !py-2 !px-4 !text-[13px]"
+                title={t("unpublish")}
+              >
+                <EyeOff size={14} />
+                {t("unpublish")}
+              </button>
+            ) : (
+              <button
+                onClick={() => handleSubmit(true)}
+                className="btn-ghost !py-2 !px-4 !text-[13px] !text-green-700 !border-green-200 hover:!bg-green-50"
+                title={t("publish")}
+              >
+                <Send size={14} />
+                {t("publish")}
+              </button>
+            )}
+            <button onClick={() => handleSubmit()} className="btn-primary !py-2 !px-5 !text-[13px]">
+              <Save size={14} />
+              {published ? t("save") : t("saveDraft")}
+            </button>
+          </div>
         </div>
       </div>
     </div>

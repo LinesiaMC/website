@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getArticleById } from "@/lib/articles";
+import { getCurrentStaff } from "@/lib/auth";
+import { hasPermissionForStaff } from "@/lib/permissions";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ArticleContent from "./ArticleContent";
@@ -13,7 +15,9 @@ export async function generateMetadata({
   params: Promise<{ locale: string; id: string }>;
 }): Promise<Metadata> {
   const { locale, id } = await params;
-  const article = await getArticleById(id);
+  const staff = await getCurrentStaff();
+  const canPreview = !!(staff && (await hasPermissionForStaff(staff, "articles.manage")));
+  const article = await getArticleById(id, { includeDrafts: canPreview });
   if (!article) return {};
 
   const url = `${SITE}/${locale}/news/${id}`;
@@ -46,7 +50,9 @@ export default async function ArticlePage({
   params: Promise<{ locale: string; id: string }>;
 }) {
   const { locale, id } = await params;
-  const article = await getArticleById(id);
+  const staff = await getCurrentStaff();
+  const canPreview = !!(staff && (await hasPermissionForStaff(staff, "articles.manage")));
+  const article = await getArticleById(id, { includeDrafts: canPreview });
 
   if (!article) {
     notFound();

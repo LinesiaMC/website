@@ -16,6 +16,7 @@ interface Article {
   date: string;
   locale: string;
   image?: string;
+  published?: boolean;
 }
 
 export default function ArticleContent({ article }: { article: Article }) {
@@ -59,6 +60,11 @@ export default function ArticleContent({ article }: { article: Article }) {
         <div className="flex items-center gap-3 text-[13px] text-text-muted mb-4">
           <Calendar size={14} />
           <span>{article.date}</span>
+          {article.published === false && (
+            <span className="ml-2 px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-[11px] font-semibold uppercase tracking-wider">
+              Brouillon
+            </span>
+          )}
         </div>
 
         <h1 className="text-[28px] sm:text-[36px] font-bold text-text leading-tight mb-4">

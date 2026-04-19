@@ -25,10 +25,16 @@ export interface Article {
   date: string; // ISO date
   locale: "fr" | "en";
   image: string;
+  published: boolean;
+}
+
+export interface FetchOptions {
+  includeDrafts?: boolean;
 }
 
 function rowToArticle(row: Record<string, unknown>): Article {
   const image = (row.image as string) || "";
+  const published = row.published;
   return {
     id: row.id as string,
     title: row.title as string,
@@ -37,35 +43,46 @@ function rowToArticle(row: Record<string, unknown>): Article {
     date: row.date as string,
     locale: row.locale as "fr" | "en",
     image: image || DEFAULT_ARTICLE_IMAGE,
+    published: published === undefined || published === null ? true : Number(published) === 1,
   };
 }
 
-export async function getArticles(): Promise<Article[]> {
+export async function getArticles(options: FetchOptions = {}): Promise<Article[]> {
   const db = await getDb();
-  const rows = await getAll(db, "SELECT * FROM articles ORDER BY date DESC");
+  const sql = options.includeDrafts
+    ? "SELECT * FROM articles ORDER BY date DESC"
+    : "SELECT * FROM articles WHERE published = 1 ORDER BY date DESC";
+  const rows = await getAll(db, sql);
   return rows.map(rowToArticle);
 }
 
-export async function getArticlesByLocale(locale: string): Promise<Article[]> {
+export async function getArticlesByLocale(locale: string, options: FetchOptions = {}): Promise<Article[]> {
   const db = await getDb();
-  const rows = await getAll(db, "SELECT * FROM articles WHERE locale = ? ORDER BY date DESC", [locale]);
+  const sql = options.includeDrafts
+    ? "SELECT * FROM articles WHERE locale = ? ORDER BY date DESC"
+    : "SELECT * FROM articles WHERE locale = ? AND published = 1 ORDER BY date DESC";
+  const rows = await getAll(db, sql, [locale]);
   return rows.map(rowToArticle);
 }
 
-export async function getArticleById(id: string): Promise<Article | undefined> {
+export async function getArticleById(id: string, options: FetchOptions = {}): Promise<Article | undefined> {
   const db = await getDb();
   const row = await getOne(db, "SELECT * FROM articles WHERE id = ?", [id]);
-  return row ? rowToArticle(row) : undefined;
+  if (!row) return undefined;
+  const article = rowToArticle(row);
+  if (!options.includeDrafts && !article.published) return undefined;
+  return article;
 }
 
 export async function createArticle(article: Omit<Article, "id">): Promise<Article> {
   const db = await getDb();
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const image = article.image?.trim() || DEFAULT_ARTICLE_IMAGE;
-  await run(db, "INSERT INTO articles (id, title, excerpt, content, date, locale, image) VALUES (?, ?, ?, ?, ?, ?, ?)", [
-    id, article.title, article.excerpt, article.content, article.date, article.locale, image,
+  const published = article.published ? 1 : 0;
+  await run(db, "INSERT INTO articles (id, title, excerpt, content, date, locale, image, published) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
+    id, article.title, article.excerpt, article.content, article.date, article.locale, image, published,
   ]);
-  return { ...article, id, image };
+  return { ...article, id, image, published: !!article.published };
 }
 
 export async function updateArticle(id: string, data: Partial<Omit<Article, "id">>): Promise<Article | null> {
@@ -75,10 +92,11 @@ export async function updateArticle(id: string, data: Partial<Omit<Article, "id"
 
   const updated = { ...rowToArticle(existing), ...data };
   const image = updated.image?.trim() || DEFAULT_ARTICLE_IMAGE;
-  await run(db, "UPDATE articles SET title = ?, excerpt = ?, content = ?, date = ?, locale = ?, image = ? WHERE id = ?", [
-    updated.title, updated.excerpt, updated.content, updated.date, updated.locale, image, id,
+  const published = updated.published ? 1 : 0;
+  await run(db, "UPDATE articles SET title = ?, excerpt = ?, content = ?, date = ?, locale = ?, image = ?, published = ? WHERE id = ?", [
+    updated.title, updated.excerpt, updated.content, updated.date, updated.locale, image, published, id,
   ]);
-  return { ...updated, image };
+  return { ...updated, image, published: !!updated.published };
 }
 
 export async function deleteArticle(id: string): Promise<boolean> {
