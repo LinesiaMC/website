@@ -7,7 +7,7 @@ import Image from "next/image";
 import {
   LogOut, Newspaper, BarChart3, Users, TrendingUp,
   ScrollText, ChevronLeft, ChevronRight, LayoutDashboard,
-  Coins, Dices, Gem, Box, Shield, MessageSquare, Fingerprint, BookOpen,
+  Coins, Dices, Box, Shield, MessageSquare, BookOpen,
   LifeBuoy, UserCircle2, Map, LogIn, User, Briefcase, Award,
 } from "lucide-react";
 import { AdminContext, CurrentStaff } from "@/components/admin/AdminContext";
@@ -27,8 +27,6 @@ const NAV_ITEMS: { key: string; icon: typeof Newspaper; path: string; perm: Perm
   { key: "jobs",       icon: Briefcase,       path: "/admin/analytics/jobs",            perm: "analytics.view" },
   { key: "prestige",   icon: Award,           path: "/admin/analytics/prestige",        perm: "analytics.view" },
   { key: "economy",    icon: Coins,           path: "/admin/analytics/economy",         perm: "analytics.view" },
-  { key: "items",      icon: Gem,             path: "/admin/analytics/items",           perm: "analytics.view" },
-  { key: "itemTrace",  icon: Fingerprint,     path: "/admin/analytics/items/trace",     perm: "analytics.view" },
   { key: "messages",   icon: MessageSquare,   path: "/admin/analytics/messages",        perm: "analytics.view" },
   { key: "casino",     icon: Dices,           path: "/admin/analytics/casino",          perm: "analytics.view" },
   { key: "boxes",      icon: Box,             path: "/admin/analytics/boxes",           perm: "analytics.view" },
@@ -50,8 +48,6 @@ const NAV_LABELS: Record<string, { fr: string; en: string }> = {
   jobs: { fr: "Métiers", en: "Jobs" },
   prestige: { fr: "Prestige", en: "Prestige" },
   economy: { fr: "Économie", en: "Economy" },
-  items: { fr: "Items", en: "Items" },
-  itemTrace: { fr: "Tracer Item", en: "Trace Item" },
   messages: { fr: "Messages", en: "Messages" },
   casino: { fr: "Casino", en: "Casino" },
   boxes: { fr: "Boxes", en: "Boxes" },

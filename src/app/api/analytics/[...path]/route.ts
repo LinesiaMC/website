@@ -3,6 +3,7 @@ import { getDb, getOne, getAll, serverFilter } from "@/lib/analytics-db";
 import { cached } from "@/lib/query-cache";
 import { getCurrentStaff } from "@/lib/auth";
 import { hasPermission } from "@/lib/roles";
+import { ITEM_ACTIVITY, ACTIVITIES, type Activity } from "@/lib/activity-categories";
 
 /**
  * Analytics read API.
@@ -23,6 +24,24 @@ async function checkAuth(req: NextRequest): Promise<boolean> {
 
 const DAY_MS = 86_400_000;
 const CACHE_TTL = 30_000; // 30s — tight enough for near-live dashboards
+
+// SQL fragment: extracts the integer after "for " in the log's detail field.
+// Used by Shop/Market buy/sell logs.
+const PRICE_EXTRACT = `CAST(SUBSTR(detail, INSTR(detail, 'for ') + 4,
+  CASE WHEN INSTR(SUBSTR(detail, INSTR(detail, 'for ') + 4), ' ') > 0
+    THEN INSTR(SUBSTR(detail, INSTR(detail, 'for ') + 4), ' ') - 1
+    ELSE LENGTH(SUBSTR(detail, INSTR(detail, 'for ') + 4))
+  END) AS INTEGER)`;
+
+function periodToSpanMs(period: string | null): number {
+  switch (period) {
+    case "24h": return DAY_MS;
+    case "30d": return 30 * DAY_MS;
+    case "all": return 0;
+    case "7d":
+    default:    return 7 * DAY_MS;
+  }
+}
 
 /**
  * Build an array of N daily buckets starting from N-1 days ago up to today,
@@ -80,62 +99,86 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
           await cached(cacheKey, CACHE_TTL, async () => {
             const now = Date.now();
             const sid = q.get("server_id");
-            if (sid && sid !== "all") {
-              // One fused query for the scoped case. Uses subselects so it's
-              // a single round-trip instead of 10 separate getOne calls.
-              const row = (await getOne(
-                db,
-                `SELECT
-                  (SELECT COUNT(DISTINCT player_uuid) FROM sessions WHERE server_id = ?) AS totalPlayers,
-                  (SELECT COUNT(DISTINCT player_uuid) FROM sessions WHERE server_id = ? AND join_time > ?) AS activeLast24h,
-                  (SELECT COUNT(DISTINCT player_uuid) FROM sessions WHERE server_id = ? AND join_time > ?) AS activeLast7d,
-                  (SELECT COUNT(*) FROM players WHERE first_seen > ?) AS newLast24h,
-                  (SELECT COUNT(*) FROM players WHERE first_seen > ?) AS newLast7d,
-                  (SELECT COUNT(*) FROM logs WHERE category = 'command' AND server_id = ?) AS totalCommands,
-                  (SELECT COUNT(*) FROM logs WHERE category = 'death' AND action = 'Death' AND server_id = ?) AS totalDeaths,
-                  (SELECT COUNT(*) FROM logs WHERE category = 'chat' AND server_id = ?) AS totalMessages,
-                  (SELECT AVG(total_playtime) FROM players WHERE total_playtime > 0) AS avgPlaytime,
-                  (SELECT AVG(session_count) FROM players) AS avgSessionCount`,
-                [
-                  sid,
-                  sid, now - DAY_MS,
-                  sid, now - 7 * DAY_MS,
-                  now - DAY_MS,
-                  now - 7 * DAY_MS,
-                  sid,
-                  sid,
-                  sid,
-                ],
-              )) as Record<string, number> | null;
-              return {
-                totalPlayers: row?.totalPlayers ?? 0,
-                activeLast24h: row?.activeLast24h ?? 0,
-                activeLast7d: row?.activeLast7d ?? 0,
-                newLast24h: row?.newLast24h ?? 0,
-                newLast7d: row?.newLast7d ?? 0,
-                totalCommands: row?.totalCommands ?? 0,
-                totalDeaths: row?.totalDeaths ?? 0,
-                totalMessages: row?.totalMessages ?? 0,
-                avgPlaytime: Math.round(row?.avgPlaytime ?? 0),
-                avgSessionCount: Math.round(((row?.avgSessionCount ?? 0) as number) * 10) / 10,
-              };
-            }
+            const scoped = sid && sid !== "all";
+            const sessionWhere = scoped ? "WHERE duration > 0 AND server_id = ?" : "WHERE duration > 0";
+            const sessionParams: unknown[] = scoped ? [sid] : [];
 
-            const row = (await getOne(
+            // Core counts — one fused query so we stay at a single round-trip
+            // for all the scalar totals. Medians are computed separately because
+            // window-function subqueries don't nest cleanly into subselects.
+            const row = scoped
+              ? (await getOne(
+                  db,
+                  `SELECT
+                    (SELECT COUNT(DISTINCT player_uuid) FROM sessions WHERE server_id = ?) AS totalPlayers,
+                    (SELECT COUNT(DISTINCT player_uuid) FROM sessions WHERE server_id = ? AND join_time > ?) AS activeLast24h,
+                    (SELECT COUNT(DISTINCT player_uuid) FROM sessions WHERE server_id = ? AND join_time > ?) AS activeLast7d,
+                    (SELECT COUNT(*) FROM players WHERE first_seen > ?) AS newLast24h,
+                    (SELECT COUNT(*) FROM players WHERE first_seen > ?) AS newLast7d,
+                    (SELECT COUNT(*) FROM logs WHERE category = 'command' AND server_id = ?) AS totalCommands,
+                    (SELECT COUNT(*) FROM logs WHERE category = 'death' AND action = 'Death' AND server_id = ?) AS totalDeaths,
+                    (SELECT COUNT(*) FROM logs WHERE category = 'chat' AND server_id = ?) AS totalMessages,
+                    (SELECT AVG(total_playtime) FROM players WHERE total_playtime > 0) AS avgPlaytime,
+                    (SELECT COUNT(*) FROM players WHERE total_playtime > 0) AS playersWithPlaytime,
+                    (SELECT AVG(session_count) FROM players) AS avgSessionCount,
+                    (SELECT COUNT(*) FROM sessions WHERE server_id = ? AND duration > 0) AS totalSessions,
+                    (SELECT AVG(duration) FROM sessions WHERE server_id = ? AND duration > 0) AS avgSessionDuration`,
+                  [
+                    sid,
+                    sid, now - DAY_MS,
+                    sid, now - 7 * DAY_MS,
+                    now - DAY_MS,
+                    now - 7 * DAY_MS,
+                    sid,
+                    sid,
+                    sid,
+                    sid,
+                    sid,
+                  ],
+                )) as Record<string, number> | null
+              : (await getOne(
+                  db,
+                  `SELECT
+                    (SELECT COUNT(*) FROM players) AS totalPlayers,
+                    (SELECT COUNT(*) FROM players WHERE last_seen > ?) AS activeLast24h,
+                    (SELECT COUNT(*) FROM players WHERE last_seen > ?) AS activeLast7d,
+                    (SELECT COUNT(*) FROM players WHERE first_seen > ?) AS newLast24h,
+                    (SELECT COUNT(*) FROM players WHERE first_seen > ?) AS newLast7d,
+                    (SELECT COUNT(*) FROM logs WHERE category = 'command') AS totalCommands,
+                    (SELECT COUNT(*) FROM logs WHERE category = 'death' AND action = 'Death') AS totalDeaths,
+                    (SELECT COUNT(*) FROM logs WHERE category = 'chat') AS totalMessages,
+                    (SELECT AVG(total_playtime) FROM players WHERE total_playtime > 0) AS avgPlaytime,
+                    (SELECT COUNT(*) FROM players WHERE total_playtime > 0) AS playersWithPlaytime,
+                    (SELECT AVG(session_count) FROM players) AS avgSessionCount,
+                    (SELECT COUNT(*) FROM sessions WHERE duration > 0) AS totalSessions,
+                    (SELECT AVG(duration) FROM sessions WHERE duration > 0) AS avgSessionDuration`,
+                  [now - DAY_MS, now - 7 * DAY_MS, now - DAY_MS, now - 7 * DAY_MS],
+                )) as Record<string, number> | null;
+
+            // Median playtime (players) — window function trick, works on any
+            // parity of N. Picks the middle row (odd N) or the two middle rows
+            // and averages them (even N).
+            const medianPlaytimeRow = (await getOne(
               db,
-              `SELECT
-                (SELECT COUNT(*) FROM players) AS totalPlayers,
-                (SELECT COUNT(*) FROM players WHERE last_seen > ?) AS activeLast24h,
-                (SELECT COUNT(*) FROM players WHERE last_seen > ?) AS activeLast7d,
-                (SELECT COUNT(*) FROM players WHERE first_seen > ?) AS newLast24h,
-                (SELECT COUNT(*) FROM players WHERE first_seen > ?) AS newLast7d,
-                (SELECT COUNT(*) FROM logs WHERE category = 'command') AS totalCommands,
-                (SELECT COUNT(*) FROM logs WHERE category = 'death' AND action = 'Death') AS totalDeaths,
-                (SELECT COUNT(*) FROM logs WHERE category = 'chat') AS totalMessages,
-                (SELECT AVG(total_playtime) FROM players WHERE total_playtime > 0) AS avgPlaytime,
-                (SELECT AVG(session_count) FROM players) AS avgSessionCount`,
-              [now - DAY_MS, now - 7 * DAY_MS, now - DAY_MS, now - 7 * DAY_MS],
-            )) as Record<string, number> | null;
+              `SELECT AVG(total_playtime) AS m FROM (
+                 SELECT total_playtime,
+                   ROW_NUMBER() OVER (ORDER BY total_playtime) AS rn,
+                   COUNT(*) OVER () AS cnt
+                 FROM players WHERE total_playtime > 0
+               ) WHERE rn IN ((cnt + 1) / 2, (cnt + 2) / 2)`,
+            )) as { m: number } | null;
+
+            const medianSessionRow = (await getOne(
+              db,
+              `SELECT AVG(duration) AS m FROM (
+                 SELECT duration,
+                   ROW_NUMBER() OVER (ORDER BY duration) AS rn,
+                   COUNT(*) OVER () AS cnt
+                 FROM sessions ${sessionWhere}
+               ) WHERE rn IN ((cnt + 1) / 2, (cnt + 2) / 2)`,
+              sessionParams,
+            )) as { m: number } | null;
+
             return {
               totalPlayers: row?.totalPlayers ?? 0,
               activeLast24h: row?.activeLast24h ?? 0,
@@ -146,7 +189,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
               totalDeaths: row?.totalDeaths ?? 0,
               totalMessages: row?.totalMessages ?? 0,
               avgPlaytime: Math.round(row?.avgPlaytime ?? 0),
+              medianPlaytime: Math.round(medianPlaytimeRow?.m ?? 0),
+              playersWithPlaytime: row?.playersWithPlaytime ?? 0,
               avgSessionCount: Math.round(((row?.avgSessionCount ?? 0) as number) * 10) / 10,
+              totalSessions: row?.totalSessions ?? 0,
+              avgSessionDuration: Math.round(row?.avgSessionDuration ?? 0),
+              medianSessionDuration: Math.round(medianSessionRow?.m ?? 0),
             };
           }),
         );
@@ -287,71 +335,244 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
       }
 
       case "stats/retention": {
+        // Parse range before cached(): an invalid range returns 400 directly.
+        const now = Date.now();
+        const toParam = q.get("to");
+        const fromParam = q.get("from");
+        const days = Number(q.get("days")) || 30;
+        const to = toParam ? Number(toParam) : now;
+        let from = fromParam ? Number(fromParam) : to - days * DAY_MS;
+        if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) {
+          return NextResponse.json({ error: "invalid range" }, { status: 400 });
+        }
+        // Clamp span — cohorts far in the past are fine, but guard against
+        // pathological requests by capping at ~2 years.
+        if (to - from > 730 * DAY_MS) from = to - 730 * DAY_MS;
+        const span = Math.max(1, Math.ceil((to - from) / DAY_MS));
+
         return NextResponse.json(
           await cached(cacheKey, CACHE_TTL, async () => {
-            const days = Number(q.get("days")) || 30;
             const sid = q.get("server_id");
-            const now = Date.now();
-            const from = now - days * DAY_MS;
             const sf = serverFilter(sid, "s");
             const sJoin = sf.where ? `AND ${sf.where}` : "";
 
-            // joined per cohort day
             const joinedRows = await getAll(
               db,
               `SELECT CAST((? - first_seen) / ? AS INTEGER) AS days_ago, COUNT(*) AS c
-               FROM players WHERE first_seen >= ? GROUP BY days_ago`,
-              [now, DAY_MS, from],
+               FROM players WHERE first_seen >= ? AND first_seen < ? GROUP BY days_ago`,
+              [to, DAY_MS, from, to],
             );
-            // returned day+1: any session within 1 day after first_seen
             const day1Rows = await getAll(
               db,
               `SELECT CAST((? - p.first_seen) / ? AS INTEGER) AS days_ago,
                  COUNT(DISTINCT p.uuid) AS c
                FROM players p INNER JOIN sessions s ON s.player_uuid = p.uuid
-               WHERE p.first_seen >= ?
+               WHERE p.first_seen >= ? AND p.first_seen < ?
                  AND s.join_time > p.first_seen
                  AND s.join_time < p.first_seen + ?
                  ${sJoin}
                GROUP BY days_ago`,
-              [now, DAY_MS, from, DAY_MS, ...sf.params],
+              [to, DAY_MS, from, to, DAY_MS, ...sf.params],
             );
             const weekRows = await getAll(
               db,
               `SELECT CAST((? - p.first_seen) / ? AS INTEGER) AS days_ago,
                  COUNT(DISTINCT p.uuid) AS c
                FROM players p INNER JOIN sessions s ON s.player_uuid = p.uuid
-               WHERE p.first_seen >= ?
+               WHERE p.first_seen >= ? AND p.first_seen < ?
                  AND s.join_time > p.first_seen
                  AND s.join_time < p.first_seen + ?
                  ${sJoin}
                GROUP BY days_ago`,
-              [now, DAY_MS, from, 7 * DAY_MS, ...sf.params],
+              [to, DAY_MS, from, to, 7 * DAY_MS, ...sf.params],
+            );
+            // "Ever returned" = at least one session strictly after first_seen.
+            // No upper time bound, so captures all returns up to `now`.
+            const everRows = await getAll(
+              db,
+              `SELECT CAST((? - p.first_seen) / ? AS INTEGER) AS days_ago,
+                 COUNT(DISTINCT p.uuid) AS c
+               FROM players p INNER JOIN sessions s ON s.player_uuid = p.uuid
+               WHERE p.first_seen >= ? AND p.first_seen < ?
+                 AND s.join_time > p.first_seen
+                 ${sJoin}
+               GROUP BY days_ago`,
+              [to, DAY_MS, from, to, ...sf.params],
             );
 
             const joinedByIdx = new Map<number, number>();
             const day1ByIdx = new Map<number, number>();
             const weekByIdx = new Map<number, number>();
+            const everByIdx = new Map<number, number>();
             for (const r of joinedRows) joinedByIdx.set(Number(r.days_ago), Number(r.c) || 0);
             for (const r of day1Rows) day1ByIdx.set(Number(r.days_ago), Number(r.c) || 0);
             for (const r of weekRows) weekByIdx.set(Number(r.days_ago), Number(r.c) || 0);
+            for (const r of everRows) everByIdx.set(Number(r.days_ago), Number(r.c) || 0);
 
-            const out = [];
-            for (let i = days - 1; i >= 0; i--) {
-              const dayStart = now - (i + 1) * DAY_MS;
+            const daysArr: Array<{
+              date: string;
+              newPlayers: number;
+              returnedDay1: number;
+              returnedWeek: number;
+              returnedEver: number;
+              retentionDay1: number;
+              retentionWeek: number;
+              retentionEver: number;
+            }> = [];
+            for (let i = span - 1; i >= 0; i--) {
+              const dayStart = to - (i + 1) * DAY_MS;
               const joined = joinedByIdx.get(i) ?? 0;
               const returnedDay1 = day1ByIdx.get(i) ?? 0;
               const returnedWeek = weekByIdx.get(i) ?? 0;
-              out.push({
+              const returnedEver = everByIdx.get(i) ?? 0;
+              daysArr.push({
                 date: new Date(dayStart).toISOString().split("T")[0],
                 newPlayers: joined,
                 returnedDay1,
                 returnedWeek,
+                returnedEver,
                 retentionDay1: joined > 0 ? Math.round((returnedDay1 / joined) * 100) : 0,
                 retentionWeek: joined > 0 ? Math.round((returnedWeek / joined) * 100) : 0,
+                retentionEver: joined > 0 ? Math.round((returnedEver / joined) * 100) : 0,
               });
             }
-            return out.reverse();
+            daysArr.reverse();
+
+            // --- Cohort aggregate stats ---
+            // total_playtime buckets: how long each new player spent on the
+            // server in total (across every session they ever played).
+            const dist = (await getOne(
+              db,
+              `SELECT
+                COUNT(*) AS total,
+                AVG(CASE WHEN total_playtime > 0 THEN total_playtime END) AS avgPlaytime,
+                SUM(CASE WHEN total_playtime < 300000 THEN 1 ELSE 0 END) AS b0,
+                SUM(CASE WHEN total_playtime >= 300000 AND total_playtime < 900000 THEN 1 ELSE 0 END) AS b1,
+                SUM(CASE WHEN total_playtime >= 900000 AND total_playtime < 1800000 THEN 1 ELSE 0 END) AS b2,
+                SUM(CASE WHEN total_playtime >= 1800000 AND total_playtime < 3600000 THEN 1 ELSE 0 END) AS b3,
+                SUM(CASE WHEN total_playtime >= 3600000 AND total_playtime < 10800000 THEN 1 ELSE 0 END) AS b4,
+                SUM(CASE WHEN total_playtime >= 10800000 AND total_playtime < 36000000 THEN 1 ELSE 0 END) AS b5,
+                SUM(CASE WHEN total_playtime >= 36000000 THEN 1 ELSE 0 END) AS b6,
+                SUM(CASE WHEN session_count <= 1 THEN 1 ELSE 0 END) AS oneAndDone,
+                SUM(CASE WHEN session_count >= 2 THEN 1 ELSE 0 END) AS returned,
+                AVG(CAST(session_count AS REAL)) AS avgSessionCount
+              FROM players WHERE first_seen >= ? AND first_seen < ?`,
+              [from, to],
+            )) as Record<string, number> | null;
+
+            const medianRow = (await getOne(
+              db,
+              `SELECT AVG(total_playtime) AS m FROM (
+                 SELECT total_playtime,
+                   ROW_NUMBER() OVER (ORDER BY total_playtime) AS rn,
+                   COUNT(*) OVER () AS cnt
+                 FROM players WHERE first_seen >= ? AND first_seen < ? AND total_playtime > 0
+               ) WHERE rn IN ((cnt + 1) / 2, (cnt + 2) / 2)`,
+              [from, to],
+            )) as { m: number } | null;
+
+            // First-session duration: for each cohort player, take the session
+            // whose join_time equals their first_seen. That's the session
+            // created when the account was registered.
+            const firstSessionRow = (await getOne(
+              db,
+              `SELECT
+                 SUM(CASE WHEN duration < 300000 THEN 1 ELSE 0 END) AS b0,
+                 SUM(CASE WHEN duration >= 300000 AND duration < 900000 THEN 1 ELSE 0 END) AS b1,
+                 SUM(CASE WHEN duration >= 900000 AND duration < 1800000 THEN 1 ELSE 0 END) AS b2,
+                 SUM(CASE WHEN duration >= 1800000 AND duration < 3600000 THEN 1 ELSE 0 END) AS b3,
+                 SUM(CASE WHEN duration >= 3600000 AND duration < 10800000 THEN 1 ELSE 0 END) AS b4,
+                 SUM(CASE WHEN duration >= 10800000 THEN 1 ELSE 0 END) AS b5,
+                 COUNT(*) AS total,
+                 AVG(duration) AS avgDuration
+               FROM (
+                 SELECT MAX(s.duration) AS duration
+                 FROM sessions s
+                 INNER JOIN players p ON p.uuid = s.player_uuid
+                 WHERE p.first_seen >= ? AND p.first_seen < ?
+                   AND s.duration > 0
+                   AND s.join_time = p.first_seen
+                   ${sJoin}
+                 GROUP BY s.player_uuid
+               )`,
+              [from, to, ...sf.params],
+            )) as Record<string, number> | null;
+
+            const total = dist?.total ?? 0;
+            const returned = dist?.returned ?? 0;
+            return {
+              range: { from, to, days: span },
+              days: daysArr,
+              cohort: {
+                total,
+                returned,
+                oneAndDone: dist?.oneAndDone ?? 0,
+                retentionEver: total > 0 ? Math.round((returned / total) * 100) : 0,
+                avgPlaytime: Math.round(dist?.avgPlaytime ?? 0),
+                medianPlaytime: Math.round(medianRow?.m ?? 0),
+                avgSessionCount: Math.round(((dist?.avgSessionCount ?? 0) as number) * 10) / 10,
+                totalPlaytimeBuckets: [
+                  { label: "<5m", count: dist?.b0 ?? 0 },
+                  { label: "5-15m", count: dist?.b1 ?? 0 },
+                  { label: "15-30m", count: dist?.b2 ?? 0 },
+                  { label: "30m-1h", count: dist?.b3 ?? 0 },
+                  { label: "1-3h", count: dist?.b4 ?? 0 },
+                  { label: "3-10h", count: dist?.b5 ?? 0 },
+                  { label: "10h+", count: dist?.b6 ?? 0 },
+                ],
+                firstSession: {
+                  total: firstSessionRow?.total ?? 0,
+                  avgDuration: Math.round(firstSessionRow?.avgDuration ?? 0),
+                  buckets: [
+                    { label: "<5m", count: firstSessionRow?.b0 ?? 0 },
+                    { label: "5-15m", count: firstSessionRow?.b1 ?? 0 },
+                    { label: "15-30m", count: firstSessionRow?.b2 ?? 0 },
+                    { label: "30m-1h", count: firstSessionRow?.b3 ?? 0 },
+                    { label: "1-3h", count: firstSessionRow?.b4 ?? 0 },
+                    { label: "3h+", count: firstSessionRow?.b5 ?? 0 },
+                  ],
+                },
+              },
+            };
+          }),
+        );
+      }
+
+      case "stats/session-distribution": {
+        // Distribution of session durations, server-wide (or scoped).
+        // Used by the dashboard Temps de jeu card to show WHERE the playtime
+        // comes from: lots of short sessions vs long ones.
+        return NextResponse.json(
+          await cached(cacheKey, CACHE_TTL, async () => {
+            const sid = q.get("server_id");
+            const sf = serverFilter(sid);
+            const where = sf.where ? `WHERE duration > 0 AND ${sf.where}` : "WHERE duration > 0";
+            const row = (await getOne(
+              db,
+              `SELECT
+                COUNT(*) AS total,
+                AVG(duration) AS avgDuration,
+                SUM(CASE WHEN duration < 300000 THEN 1 ELSE 0 END) AS b0,
+                SUM(CASE WHEN duration >= 300000 AND duration < 900000 THEN 1 ELSE 0 END) AS b1,
+                SUM(CASE WHEN duration >= 900000 AND duration < 1800000 THEN 1 ELSE 0 END) AS b2,
+                SUM(CASE WHEN duration >= 1800000 AND duration < 3600000 THEN 1 ELSE 0 END) AS b3,
+                SUM(CASE WHEN duration >= 3600000 AND duration < 10800000 THEN 1 ELSE 0 END) AS b4,
+                SUM(CASE WHEN duration >= 10800000 THEN 1 ELSE 0 END) AS b5
+               FROM sessions ${where}`,
+              sf.params,
+            )) as Record<string, number> | null;
+            return {
+              total: row?.total ?? 0,
+              avgDuration: Math.round(row?.avgDuration ?? 0),
+              buckets: [
+                { label: "<5m", count: row?.b0 ?? 0 },
+                { label: "5-15m", count: row?.b1 ?? 0 },
+                { label: "15-30m", count: row?.b2 ?? 0 },
+                { label: "30m-1h", count: row?.b3 ?? 0 },
+                { label: "1-3h", count: row?.b4 ?? 0 },
+                { label: "3h+", count: row?.b5 ?? 0 },
+              ],
+            };
           }),
         );
       }
@@ -799,23 +1020,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         );
       }
 
-      case "stats/economy/top-items": {
-        return NextResponse.json(
-          await cached(cacheKey, CACHE_TTL, async () => {
-            const sid = q.get("server_id");
-            const sf = serverFilter(sid);
-            const wCat = sf.where ? `WHERE category = 'economy' AND ${sf.where}` : "WHERE category = 'economy'";
-            return getAll(
-              db,
-              `SELECT item_name, action, COUNT(*) as tx_count, SUM(item_count) as total_qty
-               FROM logs ${wCat} AND item_name IS NOT NULL AND item_name != ''
-               GROUP BY item_name, action ORDER BY tx_count DESC LIMIT 30`,
-              sf.params,
-            );
-          }),
-        );
-      }
-
       case "stats/economy/daily": {
         return NextResponse.json(
           await cached(cacheKey, CACHE_TTL, async () => {
@@ -843,27 +1047,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         );
       }
 
-      case "stats/economy/top-spenders": {
-        return NextResponse.json(
-          await cached(cacheKey, CACHE_TTL, async () => {
-            const sid = q.get("server_id");
-            const limit = Number(q.get("limit")) || 10;
-            const sf = serverFilter(sid);
-            const wCat = sf.where ? `WHERE category = 'economy' AND ${sf.where}` : "WHERE category = 'economy'";
-            return getAll(
-              db,
-              `SELECT player_name, COUNT(*) as tx_count,
-                SUM(CASE WHEN action = 'ShopBuy' THEN 1 ELSE 0 END) as buys,
-                SUM(CASE WHEN action IN ('ShopSell','SellAll') THEN 1 ELSE 0 END) as sells,
-                SUM(CASE WHEN action = 'Pay' THEN 1 ELSE 0 END) as pays
-               FROM logs ${wCat} AND player_name IS NOT NULL
-               GROUP BY player_name ORDER BY tx_count DESC LIMIT ?`,
-              [...sf.params, limit],
-            );
-          }),
-        );
-      }
-
       case "stats/economy/circulation": {
         return NextResponse.json(
           await cached(cacheKey, CACHE_TTL, async () => {
@@ -881,111 +1064,428 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         );
       }
 
-      // ==================== ITEMS CIRCULATION ====================
-      case "stats/items/circulation": {
+      // ==================== BALANCE (profitability per activity) ====================
+      case "stats/balance/activities": {
         return NextResponse.json(
           await cached(cacheKey, CACHE_TTL, async () => {
+            const period = q.get("period");
+            const now = Date.now();
+            const span = periodToSpanMs(period);
+            const from = span === 0 ? 0 : now - span;
+            const prevFrom = span === 0 ? 0 : now - 2 * span;
+            const prevTo = span === 0 ? 0 : now - span;
             const sid = q.get("server_id");
-            const search = q.get("search");
-            const limit = Number(q.get("limit")) || 50;
             const sf = serverFilter(sid);
+            const sWhere = sf.where ? `AND ${sf.where}` : "";
 
-            const items = await getAll(
+            const zero = (): Record<Activity, number> =>
+              ({ mine: 0, farm: 0, wood: 0, mob: 0, fish: 0 });
+
+            // 1. Active-time buckets: 60s per (player, activity). Row count * 60s = active time.
+            const bucketRows = await getAll(
               db,
-              `SELECT
-                item_name,
-                SUM(CASE WHEN action IN ('ShopBuy', 'MarketBuy') THEN COALESCE(item_count, 1) ELSE 0 END) as bought,
-                SUM(CASE WHEN action IN ('ShopSell', 'SellAll', 'MarketSell') THEN COALESCE(item_count, 1) ELSE 0 END) as sold,
-                SUM(CASE WHEN action = 'Craft' THEN COALESCE(item_count, 1) ELSE 0 END) as crafted,
-                SUM(CASE WHEN action = 'BoxOpen' THEN COALESCE(item_count, 1) ELSE 0 END) as from_boxes,
-                COUNT(*) as total_tx
-               FROM logs
-               ${sf.where ? `WHERE ${sf.where} AND` : "WHERE"}
-                 item_name IS NOT NULL AND item_name != ''
-                 AND category IN ('economy', 'craft', 'box')
-                 ${search ? "AND item_name LIKE ?" : ""}
-               GROUP BY item_name
-               ORDER BY total_tx DESC
-               LIMIT ?`,
-              [...sf.params, ...(search ? [`%${search}%`] : []), limit],
-            );
+              `SELECT LOWER(action) AS activity,
+                      COUNT(*) AS bucket_count,
+                      COUNT(DISTINCT player_uuid) AS player_count,
+                      SUM(items) AS items_total
+               FROM (
+                 SELECT action, player_uuid,
+                        SUM(COALESCE(item_count, 1)) AS items
+                 FROM logs
+                 WHERE category = 'harvest'
+                   AND action IN ('Mine','Farm','Wood','Mob','Fish')
+                   AND timestamp >= ? ${sWhere}
+                 GROUP BY action, player_uuid, timestamp / 60000
+               )
+               GROUP BY activity`,
+              [from, ...sf.params],
+            ) as Array<{ activity: Activity; bucket_count: number; player_count: number; items_total: number }>;
 
-            // Fuse the two summary counts into a single query.
-            const sum = (await getOne(
+            // 2. Revenue per item_name (current period).
+            const sellRows = await getAll(
               db,
-              `SELECT COUNT(DISTINCT item_name) AS totalUniqueItems, COUNT(*) AS totalTransactions
+              `SELECT item_name, SUM(${PRICE_EXTRACT}) AS total
                FROM logs
-               ${sf.where ? `WHERE ${sf.where} AND` : "WHERE"}
-                 item_name IS NOT NULL AND item_name != ''
-                 AND category IN ('economy', 'craft', 'box')`,
-              sf.params,
-            )) as Record<string, number> | null;
+               WHERE category = 'economy'
+                 AND action IN ('ShopSell','SellAll','MarketSell')
+                 AND timestamp >= ? AND item_name IS NOT NULL AND item_name != ''
+                 AND detail LIKE '%for %' ${sWhere}
+               GROUP BY item_name`,
+              [from, ...sf.params],
+            ) as Array<{ item_name: string; total: number }>;
 
-            return {
-              items,
-              totalUniqueItems: sum?.totalUniqueItems ?? 0,
-              totalTransactions: sum?.totalTransactions ?? 0,
-            };
+            // 3. Expense per input/tool item (current period).
+            const buyRows = await getAll(
+              db,
+              `SELECT item_name, SUM(${PRICE_EXTRACT}) AS total
+               FROM logs
+               WHERE category = 'economy' AND action = 'ShopBuy'
+                 AND timestamp >= ? AND item_name IS NOT NULL AND item_name != ''
+                 AND detail LIKE '%for %' ${sWhere}
+               GROUP BY item_name`,
+              [from, ...sf.params],
+            ) as Array<{ item_name: string; total: number }>;
+
+            // 4. Previous period revenue (for trend) — only run if period is bounded.
+            let prevSellRows: Array<{ item_name: string; total: number }> = [];
+            if (span > 0) {
+              prevSellRows = await getAll(
+                db,
+                `SELECT item_name, SUM(${PRICE_EXTRACT}) AS total
+                 FROM logs
+                 WHERE category = 'economy'
+                   AND action IN ('ShopSell','SellAll','MarketSell')
+                   AND timestamp >= ? AND timestamp < ?
+                   AND item_name IS NOT NULL AND item_name != ''
+                   AND detail LIKE '%for %' ${sWhere}
+                 GROUP BY item_name`,
+                [prevFrom, prevTo, ...sf.params],
+              ) as Array<{ item_name: string; total: number }>;
+            }
+
+            const revenueByActivity = zero();
+            const expenseByActivity = zero();
+            const prevRevenueByActivity = zero();
+            for (const row of sellRows) {
+              const cfg = ITEM_ACTIVITY[row.item_name];
+              if (cfg?.role === "output") revenueByActivity[cfg.activity] += Number(row.total) || 0;
+            }
+            for (const row of buyRows) {
+              const cfg = ITEM_ACTIVITY[row.item_name];
+              if (cfg && (cfg.role === "input" || cfg.role === "tool"))
+                expenseByActivity[cfg.activity] += Number(row.total) || 0;
+            }
+            for (const row of prevSellRows) {
+              const cfg = ITEM_ACTIVITY[row.item_name];
+              if (cfg?.role === "output") prevRevenueByActivity[cfg.activity] += Number(row.total) || 0;
+            }
+
+            const byActivity = new Map<Activity, { bucket_count: number; player_count: number; items_total: number }>();
+            for (const row of bucketRows) byActivity.set(row.activity as Activity, row);
+
+            return ACTIVITIES.map((activity) => {
+              const row = byActivity.get(activity);
+              const hours_active = (row?.bucket_count ?? 0) * 60 / 3600;
+              const revenue = revenueByActivity[activity];
+              const expense = expenseByActivity[activity];
+              const net = revenue - expense;
+              const per_hour = hours_active > 0 ? net / hours_active : 0;
+              const prevRevenue = prevRevenueByActivity[activity];
+              const delta_pct = prevRevenue > 0
+                ? ((revenue - prevRevenue) / prevRevenue) * 100
+                : (revenue > 0 ? 100 : 0);
+              return {
+                activity,
+                hours_active,
+                active_players: Number(row?.player_count ?? 0),
+                items_total: Number(row?.items_total ?? 0),
+                revenue,
+                expense,
+                net,
+                per_hour,
+                delta_pct,
+              };
+            });
           }),
         );
       }
 
-      case "stats/items/daily": {
+      case "stats/balance/items": {
         return NextResponse.json(
           await cached(cacheKey, CACHE_TTL, async () => {
-            const days = Number(q.get("days")) || 14;
-            const itemName = q.get("item");
-            const sid = q.get("server_id");
+            const period = q.get("period");
+            const activityFilter = (q.get("activity") || "").toLowerCase();
+            const search = q.get("search");
             const now = Date.now();
-            const from = now - days * DAY_MS;
+            const span = periodToSpanMs(period);
+            const from = span === 0 ? 0 : now - span;
+            const sid = q.get("server_id");
             const sf = serverFilter(sid);
             const sWhere = sf.where ? `AND ${sf.where}` : "";
-            const itemFilter = itemName ? "AND item_name = ?" : "";
+
             const rows = await getAll(
               db,
-              `SELECT CAST((? - timestamp) / ? AS INTEGER) AS days_ago,
+              `SELECT item_name,
                 SUM(CASE WHEN action IN ('ShopBuy','MarketBuy') THEN COALESCE(item_count,1) ELSE 0 END) AS bought,
                 SUM(CASE WHEN action IN ('ShopSell','SellAll','MarketSell') THEN COALESCE(item_count,1) ELSE 0 END) AS sold,
-                SUM(CASE WHEN action = 'Craft' THEN COALESCE(item_count,1) ELSE 0 END) AS crafted
+                SUM(CASE WHEN action = 'Craft' THEN COALESCE(item_count,1) ELSE 0 END) AS crafted,
+                SUM(CASE WHEN action = 'BoxOpen' THEN COALESCE(item_count,1) ELSE 0 END) AS from_boxes,
+                SUM(CASE WHEN action IN ('ShopSell','SellAll','MarketSell') AND detail LIKE '%for %' THEN ${PRICE_EXTRACT} ELSE 0 END) AS revenue,
+                SUM(CASE WHEN action = 'ShopBuy' AND detail LIKE '%for %' THEN ${PRICE_EXTRACT} ELSE 0 END) AS expense,
+                AVG(CASE WHEN action IN ('ShopSell','SellAll','MarketSell') AND detail LIKE '%for %'
+                          THEN (${PRICE_EXTRACT}) * 1.0 / NULLIF(COALESCE(item_count,1), 0) END) AS avg_sell_price,
+                AVG(CASE WHEN action = 'ShopBuy' AND detail LIKE '%for %'
+                          THEN (${PRICE_EXTRACT}) * 1.0 / NULLIF(COALESCE(item_count,1), 0) END) AS avg_buy_price,
+                COUNT(*) AS total_tx
                FROM logs
-               WHERE timestamp >= ? ${sWhere}
-                 AND item_name IS NOT NULL
+               WHERE item_name IS NOT NULL AND item_name != ''
                  AND category IN ('economy','craft','box')
-                 ${itemFilter}
-               GROUP BY days_ago`,
-              [now, DAY_MS, from, ...sf.params, ...(itemName ? [itemName] : [])],
-            );
-            return fillDailyBuckets(rows, days, now, { bought: 0, sold: 0, crafted: 0 });
+                 AND timestamp >= ?
+                 ${search ? "AND item_name LIKE ?" : ""}
+                 ${sWhere}
+               GROUP BY item_name
+               HAVING total_tx > 0`,
+              [from, ...(search ? [`%${search}%`] : []), ...sf.params],
+            ) as Array<{
+              item_name: string;
+              bought: number; sold: number; crafted: number; from_boxes: number;
+              revenue: number; expense: number;
+              avg_sell_price: number | null; avg_buy_price: number | null;
+              total_tx: number;
+            }>;
+
+            const enriched = rows.map((r) => {
+              const cfg = ITEM_ACTIVITY[r.item_name];
+              const avg_sell = Number(r.avg_sell_price) || 0;
+              const avg_buy = Number(r.avg_buy_price) || 0;
+              return {
+                item_name: r.item_name,
+                activity: cfg?.activity ?? null,
+                role: cfg?.role ?? null,
+                bought: Number(r.bought) || 0,
+                sold: Number(r.sold) || 0,
+                crafted: Number(r.crafted) || 0,
+                from_boxes: Number(r.from_boxes) || 0,
+                net_circulation: (Number(r.bought) || 0) + (Number(r.crafted) || 0) + (Number(r.from_boxes) || 0) - (Number(r.sold) || 0),
+                revenue: Number(r.revenue) || 0,
+                expense: Number(r.expense) || 0,
+                avg_sell_price: avg_sell > 0 ? Math.round(avg_sell * 100) / 100 : null,
+                avg_buy_price: avg_buy > 0 ? Math.round(avg_buy * 100) / 100 : null,
+                margin: (avg_sell > 0 && avg_buy > 0) ? Math.round((avg_sell - avg_buy) * 100) / 100 : null,
+                total_tx: Number(r.total_tx) || 0,
+              };
+            });
+
+            const revenuePerActivity: Record<string, number> = {};
+            for (const it of enriched) {
+              if (it.activity) revenuePerActivity[it.activity] = (revenuePerActivity[it.activity] ?? 0) + it.revenue;
+            }
+
+            const withShare = enriched.map((it) => ({
+              ...it,
+              activity_revenue_share: it.activity && revenuePerActivity[it.activity] > 0
+                ? (it.revenue / revenuePerActivity[it.activity]) * 100
+                : 0,
+            }));
+
+            const filtered = activityFilter
+              ? withShare.filter((it) => it.activity === activityFilter)
+              : withShare;
+
+            filtered.sort((a, b) => b.revenue - a.revenue || b.total_tx - a.total_tx);
+
+            return { items: filtered.slice(0, 200), total: filtered.length };
           }),
         );
       }
 
-      case "stats/items/avg-price": {
+      case "stats/balance/timeline": {
         return NextResponse.json(
           await cached(cacheKey, CACHE_TTL, async () => {
+            const period = q.get("period") ?? "30d";
+            const now = Date.now();
+            const span = periodToSpanMs(period) || 30 * DAY_MS;
+            const from = now - span;
+            const days = Math.max(1, Math.round(span / DAY_MS));
             const sid = q.get("server_id");
             const sf = serverFilter(sid);
             const sWhere = sf.where ? `AND ${sf.where}` : "";
-            return getAll(
+
+            const [harvestRows, sellRows] = await Promise.all([
+              getAll(
+                db,
+                `SELECT CAST((? - timestamp) / ? AS INTEGER) AS days_ago,
+                        LOWER(action) AS activity,
+                        COUNT(DISTINCT player_uuid || '|' || (timestamp / 60000)) AS buckets
+                 FROM logs
+                 WHERE category = 'harvest'
+                   AND action IN ('Mine','Farm','Wood','Mob','Fish')
+                   AND timestamp >= ? ${sWhere}
+                 GROUP BY days_ago, activity`,
+                [now, DAY_MS, from, ...sf.params],
+              ) as Promise<Array<{ days_ago: number; activity: Activity; buckets: number }>>,
+              getAll(
+                db,
+                `SELECT CAST((? - timestamp) / ? AS INTEGER) AS days_ago,
+                        item_name,
+                        SUM(${PRICE_EXTRACT}) AS revenue
+                 FROM logs
+                 WHERE category = 'economy'
+                   AND action IN ('ShopSell','SellAll','MarketSell')
+                   AND timestamp >= ? AND item_name IS NOT NULL AND detail LIKE '%for %' ${sWhere}
+                 GROUP BY days_ago, item_name`,
+                [now, DAY_MS, from, ...sf.params],
+              ) as Promise<Array<{ days_ago: number; item_name: string; revenue: number }>>,
+            ]);
+
+            // Build per-day × per-activity revenue + buckets.
+            const byDay: Record<number, Record<Activity, { revenue: number; buckets: number }>> = {};
+            const zeroActivities = (): Record<Activity, { revenue: number; buckets: number }> =>
+              ({ mine: { revenue: 0, buckets: 0 }, farm: { revenue: 0, buckets: 0 },
+                 wood: { revenue: 0, buckets: 0 }, mob: { revenue: 0, buckets: 0 },
+                 fish: { revenue: 0, buckets: 0 } });
+
+            for (const r of harvestRows) {
+              const d = Number(r.days_ago);
+              if (!Number.isFinite(d) || d < 0 || d >= days) continue;
+              byDay[d] ??= zeroActivities();
+              byDay[d][r.activity].buckets += Number(r.buckets) || 0;
+            }
+            for (const r of sellRows) {
+              const d = Number(r.days_ago);
+              if (!Number.isFinite(d) || d < 0 || d >= days) continue;
+              const cfg = ITEM_ACTIVITY[r.item_name];
+              if (!cfg || cfg.role !== "output") continue;
+              byDay[d] ??= zeroActivities();
+              byDay[d][cfg.activity].revenue += Number(r.revenue) || 0;
+            }
+
+            const out: Array<{ date: string } & Record<Activity, number>> = [];
+            for (let i = days - 1; i >= 0; i--) {
+              const dayStart = now - (i + 1) * DAY_MS;
+              const date = new Date(dayStart).toISOString().split("T")[0];
+              const entry = byDay[i] ?? zeroActivities();
+              const row = { date } as { date: string } & Record<Activity, number>;
+              for (const a of ACTIVITIES) {
+                const hours = entry[a].buckets * 60 / 3600;
+                row[a] = hours > 0 ? Math.round(entry[a].revenue / hours) : 0;
+              }
+              out.push(row);
+            }
+            return out;
+          }),
+        );
+      }
+
+      case "stats/balance/anomalies": {
+        return NextResponse.json(
+          await cached(cacheKey, CACHE_TTL, async () => {
+            const period = q.get("period");
+            const now = Date.now();
+            const span = periodToSpanMs(period);
+            const from = span === 0 ? 0 : now - span;
+            const sid = q.get("server_id");
+            const sf = serverFilter(sid);
+            const sWhere = sf.where ? `AND ${sf.where}` : "";
+
+            const itemFlow = await getAll(
               db,
-              `SELECT
-                item_name,
-                ROUND(AVG(CAST(SUBSTR(detail, INSTR(detail, 'for ') + 4,
-                  CASE WHEN INSTR(SUBSTR(detail, INSTR(detail, 'for ') + 4), ' ') > 0
-                    THEN INSTR(SUBSTR(detail, INSTR(detail, 'for ') + 4), ' ') - 1
-                    ELSE LENGTH(SUBSTR(detail, INSTR(detail, 'for ') + 4))
-                  END) AS REAL)), 2) as avg_price,
-                COUNT(*) as tx_count
-              FROM logs
-              WHERE category = 'economy'
-                AND action IN ('ShopBuy', 'ShopSell', 'SellAll', 'MarketBuy', 'MarketSell')
-                AND item_name IS NOT NULL AND item_name != ''
-                AND detail LIKE '%for %'
-                ${sWhere}
-              GROUP BY item_name
-              ORDER BY tx_count DESC`,
-              sf.params,
-            );
+              `SELECT item_name,
+                SUM(CASE WHEN action IN ('ShopBuy','MarketBuy') THEN COALESCE(item_count,1) ELSE 0 END) AS bought,
+                SUM(CASE WHEN action IN ('ShopSell','SellAll','MarketSell') THEN COALESCE(item_count,1) ELSE 0 END) AS sold,
+                SUM(CASE WHEN action = 'Craft' THEN COALESCE(item_count,1) ELSE 0 END) AS crafted,
+                SUM(CASE WHEN action = 'BoxOpen' THEN COALESCE(item_count,1) ELSE 0 END) AS from_boxes,
+                SUM(CASE WHEN action IN ('ShopSell','SellAll','MarketSell') AND detail LIKE '%for %' THEN ${PRICE_EXTRACT} ELSE 0 END) AS revenue,
+                COUNT(*) AS total_tx
+               FROM logs
+               WHERE category IN ('economy','craft','box')
+                 AND item_name IS NOT NULL AND item_name != ''
+                 AND timestamp >= ? ${sWhere}
+               GROUP BY item_name`,
+              [from, ...sf.params],
+            ) as Array<{
+              item_name: string; bought: number; sold: number; crafted: number;
+              from_boxes: number; revenue: number; total_tx: number;
+            }>;
+
+            const sinks: Array<{ item_name: string; bought: number; sold: number }> = [];
+            const dupeSuspects: Array<{ item_name: string; sold: number; produced: number; delta: number }> = [];
+            const uncategorized: Array<{ item_name: string; revenue: number; total_tx: number }> = [];
+
+            for (const r of itemFlow) {
+              const bought = Number(r.bought) || 0;
+              const sold = Number(r.sold) || 0;
+              const crafted = Number(r.crafted) || 0;
+              const from_boxes = Number(r.from_boxes) || 0;
+              const revenue = Number(r.revenue) || 0;
+              const total_tx = Number(r.total_tx) || 0;
+              const cfg = ITEM_ACTIVITY[r.item_name];
+
+              if (bought >= 100 && sold === 0) sinks.push({ item_name: r.item_name, bought, sold });
+              const produced = bought + crafted + from_boxes;
+              if (sold > produced + 50 && sold > 100) {
+                dupeSuspects.push({ item_name: r.item_name, sold, produced, delta: sold - produced });
+              }
+              if (!cfg && revenue > 0) {
+                uncategorized.push({ item_name: r.item_name, revenue, total_tx });
+              }
+            }
+
+            sinks.sort((a, b) => b.bought - a.bought);
+            dupeSuspects.sort((a, b) => b.delta - a.delta);
+            uncategorized.sort((a, b) => b.revenue - a.revenue);
+
+            // $/h outliers per (player, activity) — flag players whose rate > 5x median.
+            const playerRates = await getAll(
+              db,
+              `SELECT player_name, LOWER(action) AS activity,
+                      COUNT(*) AS buckets
+               FROM (
+                 SELECT action, player_name, timestamp
+                 FROM logs
+                 WHERE category = 'harvest'
+                   AND action IN ('Mine','Farm','Wood','Mob','Fish')
+                   AND timestamp >= ? AND player_name IS NOT NULL ${sWhere}
+                 GROUP BY action, player_name, timestamp / 60000
+               )
+               GROUP BY player_name, activity
+               HAVING buckets >= 5`,
+              [from, ...sf.params],
+            ) as Array<{ player_name: string; activity: Activity; buckets: number }>;
+
+            const playerRevenue = await getAll(
+              db,
+              `SELECT player_name, item_name, SUM(${PRICE_EXTRACT}) AS revenue
+               FROM logs
+               WHERE category = 'economy'
+                 AND action IN ('ShopSell','SellAll','MarketSell')
+                 AND timestamp >= ? AND player_name IS NOT NULL
+                 AND item_name IS NOT NULL AND detail LIKE '%for %' ${sWhere}
+               GROUP BY player_name, item_name`,
+              [from, ...sf.params],
+            ) as Array<{ player_name: string; item_name: string; revenue: number }>;
+
+            const revByPlayerActivity = new Map<string, number>();
+            for (const r of playerRevenue) {
+              const cfg = ITEM_ACTIVITY[r.item_name];
+              if (cfg?.role !== "output") continue;
+              const key = `${r.player_name}|${cfg.activity}`;
+              revByPlayerActivity.set(key, (revByPlayerActivity.get(key) ?? 0) + Number(r.revenue));
+            }
+
+            const ratesByActivity: Record<Activity, number[]> = { mine: [], farm: [], wood: [], mob: [], fish: [] };
+            const perPlayer: Array<{ player_name: string; activity: Activity; hours: number; revenue: number; rate: number }> = [];
+            for (const p of playerRates) {
+              const hours = p.buckets * 60 / 3600;
+              if (hours <= 0) continue;
+              const rev = revByPlayerActivity.get(`${p.player_name}|${p.activity}`) ?? 0;
+              if (rev <= 0) continue;
+              const rate = rev / hours;
+              ratesByActivity[p.activity].push(rate);
+              perPlayer.push({ player_name: p.player_name, activity: p.activity, hours, revenue: rev, rate });
+            }
+
+            const median = (arr: number[]): number => {
+              if (arr.length === 0) return 0;
+              const sorted = [...arr].sort((a, b) => a - b);
+              const mid = Math.floor(sorted.length / 2);
+              return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+            };
+            const medians = {} as Record<Activity, number>;
+            for (const a of ACTIVITIES) medians[a] = median(ratesByActivity[a]);
+
+            const outliers = perPlayer
+              .filter((p) => medians[p.activity] > 0 && p.rate > medians[p.activity] * 5)
+              .sort((a, b) => b.rate - a.rate)
+              .slice(0, 15)
+              .map((p) => ({ ...p, median: medians[p.activity], multiple: p.rate / medians[p.activity] }));
+
+            return {
+              outliers,
+              sinks: sinks.slice(0, 15),
+              dupe_suspects: dupeSuspects.slice(0, 15),
+              uncategorized: uncategorized.slice(0, 20),
+            };
           }),
         );
       }

@@ -4,8 +4,8 @@ import { useState, useCallback, useEffect, ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import {
   Lock, LogOut, Newspaper, BarChart3, Users, TrendingUp,
-  ScrollText, ChevronLeft, ChevronRight, LayoutDashboard, Dices, Coins, Gem, Box,
-  MessageSquare, Fingerprint, Shield, Briefcase, Award,
+  ScrollText, ChevronLeft, ChevronRight, LayoutDashboard, Dices, Coins, Box,
+  MessageSquare, Shield, Briefcase, Award,
 } from "lucide-react";
 
 interface AdminShellProps {
@@ -21,8 +21,6 @@ const NAV_ITEMS = [
   { key: "jobs", icon: Briefcase, path: "/admin/analytics/jobs" },
   { key: "prestige", icon: Award, path: "/admin/analytics/prestige" },
   { key: "economy", icon: Coins, path: "/admin/analytics/economy" },
-  { key: "items", icon: Gem, path: "/admin/analytics/items" },
-  { key: "itemTrace", icon: Fingerprint, path: "/admin/analytics/items/trace" },
   { key: "messages", icon: MessageSquare, path: "/admin/analytics/messages" },
   { key: "casino", icon: Dices, path: "/admin/analytics/casino" },
   { key: "boxes", icon: Box, path: "/admin/analytics/boxes" },
@@ -38,8 +36,6 @@ const NAV_LABELS: Record<string, { fr: string; en: string }> = {
   jobs: { fr: "Métiers", en: "Jobs" },
   prestige: { fr: "Prestige", en: "Prestige" },
   economy: { fr: "Economie", en: "Economy" },
-  items: { fr: "Items", en: "Items" },
-  itemTrace: { fr: "Tracer Item", en: "Trace Item" },
   messages: { fr: "Messages", en: "Messages" },
   casino: { fr: "Casino", en: "Casino" },
   boxes: { fr: "Boxes", en: "Boxes" },
@@ -140,7 +136,6 @@ export default function AdminShell({ children, locale }: AdminShellProps) {
   const isActive = (itemPath: string) => {
     const full = `/${locale}${itemPath}`;
     if (itemPath === "/admin") return pathname === full;
-    if (itemPath === "/admin/analytics/items") return pathname === full;
     return pathname.startsWith(full);
   };
 

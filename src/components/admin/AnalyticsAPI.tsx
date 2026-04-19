@@ -11,7 +11,8 @@ export function createAnalyticsFetcher(headers: () => Record<string, string>) {
 }
 
 export function formatDuration(ms: number): string {
-  if (!ms || ms <= 0) return "0m";
+  if (!ms || ms <= 0) return "0s";
+  if (ms < 60_000) return `${Math.max(1, Math.round(ms / 1000))}s`;
   const hours = Math.floor(ms / 3600000);
   const mins = Math.floor((ms % 3600000) / 60000);
   if (hours > 0) return `${hours}h ${mins}m`;

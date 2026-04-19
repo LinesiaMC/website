@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
-  Users, UserPlus, Clock, Skull, MessageSquare, Terminal,
-  TrendingUp, TrendingDown, Activity, Dices, DollarSign,
+  Users, UserPlus, Skull, MessageSquare, Terminal,
+  TrendingUp, TrendingDown, Activity, Dices, DollarSign, Timer, Hourglass,
 } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDuration, formatNumber } from "@/components/admin/AnalyticsAPI";
@@ -24,7 +24,18 @@ interface OverviewStats {
   totalDeaths: number;
   totalMessages: number;
   avgPlaytime: number;
+  medianPlaytime: number;
+  playersWithPlaytime: number;
   avgSessionCount: number;
+  totalSessions: number;
+  avgSessionDuration: number;
+  medianSessionDuration: number;
+}
+
+interface SessionDistribution {
+  total: number;
+  avgDuration: number;
+  buckets: { label: string; count: number }[];
 }
 
 interface CasinoOverview {
@@ -72,6 +83,7 @@ export default function AnalyticsDashboard() {
   const [commands, setCommands] = useState<CommandData[]>([]);
   const [peakHours, setPeakHours] = useState<PeakData[]>([]);
   const [casino, setCasino] = useState<CasinoOverview | null>(null);
+  const [sessionDist, setSessionDist] = useState<SessionDistribution | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const api = useRef(createAnalyticsFetcher(headers)).current;
@@ -85,7 +97,8 @@ export default function AnalyticsDashboard() {
       api("stats/commands", { limit: "10" }),
       api("stats/peak-hours"),
       api("stats/casino"),
-    ]).then(([s, d, p, c, cmd, ph, cas]) => {
+      api("stats/session-distribution"),
+    ]).then(([s, d, p, c, cmd, ph, cas, sd]) => {
       setStats(s);
       setDaily(d);
       setPlatforms(p);
@@ -93,6 +106,7 @@ export default function AnalyticsDashboard() {
       setCommands(cmd);
       setPeakHours(ph);
       setCasino(cas);
+      setSessionDist(sd);
       setLoading(false);
     }).catch(() => {
       setError(locale === "fr" ? "Impossible de charger les analytics. Verifiez que le web-panel est en ligne." : "Failed to load analytics. Check that the web-panel is running.");
@@ -128,16 +142,16 @@ export default function AnalyticsDashboard() {
   if (!stats) return null;
 
   const kpis = [
-    { label: locale === "fr" ? "Joueurs totaux" : "Total Players", value: formatNumber(stats.totalPlayers), icon: Users, color: "bg-pink/10 text-pink" },
+    { label: locale === "fr" ? "Joueurs totaux" : "Total Players", value: formatNumber(stats.totalPlayers), hint: locale === "fr" ? `${stats.playersWithPlaytime} avec temps enregistré` : `${stats.playersWithPlaytime} with playtime`, icon: Users, color: "bg-pink/10 text-pink" },
     { label: locale === "fr" ? "Actifs (24h)" : "Active (24h)", value: formatNumber(stats.activeLast24h), icon: TrendingUp, color: "bg-green/10 text-green" },
     { label: locale === "fr" ? "Actifs (7j)" : "Active (7d)", value: formatNumber(stats.activeLast7d), icon: TrendingUp, color: "bg-violet/10 text-violet" },
     { label: locale === "fr" ? "Nouveaux (24h)" : "New (24h)", value: formatNumber(stats.newLast24h), icon: UserPlus, color: "bg-blue-50 text-blue-500" },
     { label: locale === "fr" ? "Nouveaux (7j)" : "New (7d)", value: formatNumber(stats.newLast7d), icon: UserPlus, color: "bg-blue-50 text-blue-500" },
-    { label: locale === "fr" ? "Temps moyen" : "Avg Playtime", value: formatDuration(stats.avgPlaytime), icon: Clock, color: "bg-orange-50 text-orange-500" },
+    { label: locale === "fr" ? "Session moy." : "Avg Session", value: formatDuration(stats.avgSessionDuration), hint: locale === "fr" ? `médiane ${formatDuration(stats.medianSessionDuration)}` : `median ${formatDuration(stats.medianSessionDuration)}`, icon: Timer, color: "bg-orange-50 text-orange-500" },
     { label: locale === "fr" ? "Commandes" : "Commands", value: formatNumber(stats.totalCommands), icon: Terminal, color: "bg-purple-50 text-purple-500" },
     { label: locale === "fr" ? "Morts" : "Deaths", value: formatNumber(stats.totalDeaths), icon: Skull, color: "bg-red-50 text-red-500" },
     { label: "Messages", value: formatNumber(stats.totalMessages), icon: MessageSquare, color: "bg-cyan-50 text-cyan-500" },
-    { label: locale === "fr" ? "Sessions moy." : "Avg Sessions", value: stats.avgSessionCount.toString(), icon: TrendingDown, color: "bg-emerald-50 text-emerald-500" },
+    { label: locale === "fr" ? "Sessions / joueur" : "Sessions / player", value: stats.avgSessionCount.toString(), hint: locale === "fr" ? `${formatNumber(stats.totalSessions)} sessions` : `${formatNumber(stats.totalSessions)} sessions`, icon: TrendingDown, color: "bg-emerald-50 text-emerald-500" },
     ...(casino && casino.totalBets > 0 ? [
       { label: locale === "fr" ? "Paris casino" : "Casino Bets", value: formatNumber(casino.totalBets), icon: Dices, color: "bg-yellow-50 text-yellow-600" },
       { label: locale === "fr" ? "Gains casino" : "Casino Won", value: formatNumber(casino.totalWinAmount), icon: DollarSign, color: "bg-green/10 text-green" },
@@ -156,7 +170,7 @@ export default function AnalyticsDashboard() {
       <h1 className="text-xl font-bold text-text mb-6">Dashboard</h1>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
         {kpis.map((kpi) => {
           const Icon = kpi.icon;
           return (
@@ -166,9 +180,116 @@ export default function AnalyticsDashboard() {
               </div>
               <p className="text-[20px] font-bold text-text">{kpi.value}</p>
               <p className="text-[11px] text-text-muted">{kpi.label}</p>
+              {kpi.hint && (
+                <p className="text-[10px] text-text-muted/70 mt-0.5 truncate">{kpi.hint}</p>
+              )}
             </div>
           );
         })}
+      </div>
+
+      {/* Temps de jeu — détail */}
+      <div className="mc-card p-5 mb-4">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-500 flex items-center justify-center">
+            <Hourglass size={15} />
+          </div>
+          <div>
+            <h3 className="text-[14px] font-semibold text-text">
+              {locale === "fr" ? "Temps de jeu" : "Playtime"}
+            </h3>
+            <p className="text-[11px] text-text-muted">
+              {locale === "fr"
+                ? "La moyenne seule est trompeuse : un joueur qui cumule 100h tire vers le haut les dizaines qui ne reviennent jamais. La médiane est plus représentative, la distribution donne la vraie forme."
+                : "Averages alone mislead: one player with 100h drags up dozens who never returned. Median is more representative, distribution shows the real shape."}
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          <div className="rounded-xl border-2 border-border bg-bg-soft/40 px-4 py-3">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">
+              {locale === "fr" ? "Session moyenne" : "Avg session"}
+            </p>
+            <p className="text-[18px] font-bold text-text">{formatDuration(stats.avgSessionDuration)}</p>
+            <p className="text-[10px] text-text-muted">
+              {locale === "fr" ? "médiane " : "median "}{formatDuration(stats.medianSessionDuration)}
+            </p>
+          </div>
+          <div className="rounded-xl border-2 border-border bg-bg-soft/40 px-4 py-3">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">
+              {locale === "fr" ? "Cumul par joueur" : "Avg per player"}
+            </p>
+            <p className="text-[18px] font-bold text-text">{formatDuration(stats.avgPlaytime)}</p>
+            <p className="text-[10px] text-text-muted">
+              {locale === "fr" ? "médiane " : "median "}{formatDuration(stats.medianPlaytime)}
+            </p>
+          </div>
+          <div className="rounded-xl border-2 border-border bg-bg-soft/40 px-4 py-3">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">
+              {locale === "fr" ? "Total sessions" : "Total sessions"}
+            </p>
+            <p className="text-[18px] font-bold text-text">{formatNumber(stats.totalSessions)}</p>
+            <p className="text-[10px] text-text-muted">
+              {stats.avgSessionCount} {locale === "fr" ? "par joueur" : "per player"}
+            </p>
+          </div>
+          <div className="rounded-xl border-2 border-border bg-bg-soft/40 px-4 py-3">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">
+              {locale === "fr" ? "Joueurs actifs" : "With playtime"}
+            </p>
+            <p className="text-[18px] font-bold text-text">{formatNumber(stats.playersWithPlaytime)}</p>
+            <p className="text-[10px] text-text-muted">
+              {stats.totalPlayers > 0
+                ? Math.round((stats.playersWithPlaytime / stats.totalPlayers) * 100)
+                : 0}% {locale === "fr" ? "des inscrits" : "of signups"}
+            </p>
+          </div>
+        </div>
+
+        {sessionDist && sessionDist.total > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] font-semibold text-text-sub uppercase tracking-wider">
+                {locale === "fr" ? "Durée des sessions" : "Session duration"}
+              </p>
+              <p className="text-[11px] text-text-muted">
+                {formatNumber(sessionDist.total)} {locale === "fr" ? "sessions analysées" : "sessions analysed"}
+              </p>
+            </div>
+            <div className="h-[160px]">
+              <Bar
+                data={{
+                  labels: sessionDist.buckets.map(b => b.label),
+                  datasets: [{
+                    data: sessionDist.buckets.map(b => b.count),
+                    backgroundColor: chartColors.pink,
+                    borderRadius: 4,
+                  }],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                      callbacks: {
+                        label: (ctx) => {
+                          const total = sessionDist.total || 1;
+                          const pct = Math.round((Number(ctx.parsed.y) / total) * 100);
+                          return `${ctx.parsed.y} (${pct}%)`;
+                        },
+                      },
+                    },
+                  },
+                  scales: {
+                    x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                    y: { beginAtZero: true, grid: { color: "#f0f0f0" }, ticks: { font: { size: 10 } } },
+                  },
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Charts row 1 */}
