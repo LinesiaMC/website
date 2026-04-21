@@ -238,3 +238,82 @@ export async function markDelivered(useId: number, side: "referrer" | "referred"
   const col = side === "referrer" ? "referrer_delivered" : "referred_delivered";
   await run(db, `UPDATE referral_uses SET ${col} = 1 WHERE id = ?`, [useId]);
 }
+
+export interface ReferralLookupOwner {
+  accountId: string;
+  microsoftId: string | null;
+  microsoftGamertag: string | null;
+  microsoftDisplayName: string | null;
+  discordId: string | null;
+  discordUsername: string | null;
+  linkedPlayerUuid: string | null;
+  linkedPlayerName: string | null;
+  accountCreatedAt: number | null;
+  accountLastLogin: number | null;
+}
+
+export interface ReferralLookupUse {
+  id: number;
+  referredName: string | null;
+  referredXuid: string;
+  referredAccountId: string | null;
+  usedAt: number;
+  referrerDelivered: boolean;
+  referredDelivered: boolean;
+}
+
+export interface ReferralLookup {
+  code: ReferralCode;
+  owner: ReferralLookupOwner | null;
+  uses: ReferralLookupUse[];
+}
+
+export async function lookupReferral(code: string): Promise<ReferralLookup | null> {
+  await ensureReferralSchema();
+  const db = await getDb();
+  const normalized = code.trim().toUpperCase();
+  if (!normalized) return null;
+
+  const codeRow = await getOne(db, "SELECT * FROM referral_codes WHERE code = ?", [normalized]);
+  if (!codeRow) return null;
+
+  const rc = rowToCode(codeRow);
+
+  const account = await getOne(db,
+    `SELECT id, microsoft_id, microsoft_gamertag, microsoft_display_name,
+            discord_id, discord_username, linked_player_uuid, linked_player_name,
+            created_at, last_login
+     FROM player_accounts WHERE id = ? LIMIT 1`,
+    [rc.ownerAccountId]);
+
+  const owner: ReferralLookupOwner | null = account ? {
+    accountId: account.id as string,
+    microsoftId: (account.microsoft_id as string) || null,
+    microsoftGamertag: (account.microsoft_gamertag as string) || null,
+    microsoftDisplayName: (account.microsoft_display_name as string) || null,
+    discordId: (account.discord_id as string) || null,
+    discordUsername: (account.discord_username as string) || null,
+    linkedPlayerUuid: (account.linked_player_uuid as string) || null,
+    linkedPlayerName: (account.linked_player_name as string) || null,
+    accountCreatedAt: (account.created_at as number) ?? null,
+    accountLastLogin: (account.last_login as number) ?? null,
+  } : null;
+
+  const useRows = await getAll(db,
+    `SELECT id, referred_name, referred_xuid, referred_account_id, used_at,
+            referrer_delivered, referred_delivered
+     FROM referral_uses WHERE code = ? ORDER BY used_at DESC LIMIT 100`,
+    [rc.code]);
+
+  const uses: ReferralLookupUse[] = useRows.map((r) => ({
+    id: Number(r.id),
+    referredName: (r.referred_name as string) || null,
+    referredXuid: (r.referred_xuid as string) || "",
+    referredAccountId: (r.referred_account_id as string) || null,
+    usedAt: r.used_at as number,
+    referrerDelivered: Number(r.referrer_delivered) === 1,
+    referredDelivered: Number(r.referred_delivered) === 1,
+  }));
+
+  return { code: rc, owner, uses };
+}

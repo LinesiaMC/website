@@ -8,7 +8,7 @@ import {
   LogOut, Newspaper, BarChart3, Users, TrendingUp,
   ScrollText, ChevronLeft, ChevronRight, LayoutDashboard,
   Coins, Dices, Box, Shield, MessageSquare, BookOpen,
-  LifeBuoy, UserCircle2, Map, LogIn, User, Briefcase, Award,
+  LifeBuoy, UserCircle2, Map, LogIn, User, Briefcase, Award, Ticket,
 } from "lucide-react";
 import { AdminContext, CurrentStaff } from "@/components/admin/AdminContext";
 import { hasPermission, Permission, ROLE_LABELS, ROLE_COLORS } from "@/lib/roles";
@@ -21,6 +21,7 @@ const NAV_ITEMS: { key: string; icon: typeof Newspaper; path: string; perm: Perm
   { key: "tickets",    icon: LifeBuoy,        path: "/admin/tickets",                   perm: "tickets.view" },
   { key: "rolesMgr",   icon: Shield,          path: "/admin/roles",                     perm: "permissions.manage" },
   { key: "grants",     icon: UserCircle2,     path: "/admin/grants",                    perm: "permissions.manage" },
+  { key: "referrals",  icon: Ticket,          path: "/admin/referrals",                 perm: "community.view" },
   { key: "dashboard",  icon: LayoutDashboard, path: "/admin/analytics",                 perm: "analytics.view" },
   { key: "players",    icon: Users,           path: "/admin/analytics/players",         perm: "analytics.view" },
   { key: "retention",  icon: TrendingUp,      path: "/admin/analytics/retention",       perm: "analytics.view" },
@@ -42,6 +43,7 @@ const NAV_LABELS: Record<string, { fr: string; en: string }> = {
   tickets: { fr: "Tickets", en: "Tickets" },
   rolesMgr: { fr: "Permissions", en: "Permissions" },
   grants: { fr: "Permissions perso.", en: "Per-user grants" },
+  referrals: { fr: "Parrainages", en: "Referrals" },
   dashboard: { fr: "Dashboard", en: "Dashboard" },
   players: { fr: "Joueurs", en: "Players" },
   retention: { fr: "Rétention", en: "Retention" },
