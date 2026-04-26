@@ -795,7 +795,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
           if (item) { where.push("item_name LIKE ?"); params.push(`%${item}%`); }
           if (itemUid) { where.push("item_uid = ?"); params.push(itemUid); }
           if (target) { where.push("target_player LIKE ?"); params.push(`%${target}%`); }
-          if (world) { where.push("world = ?"); params.push(world); }
+          if (world) {
+            // Free text: exact match (index seek) when no wildcard, otherwise LIKE.
+            if (/[%_]/.test(world)) { where.push("world LIKE ?"); params.push(world); }
+            else { where.push("world = ?"); params.push(world); }
+          }
           if (level) { where.push("level = ?"); params.push(level); }
           if (search) {
             // Free-text search forces LIKE '%x%' which can't use an index. Limit

@@ -295,7 +295,9 @@ export default function LogsPage() {
   const [searchText, setSearchText] = useState("");
   const [world, setWorld] = useState("");
   // Date range: stored as ms. null = no bound. Presets only set `from`.
-  const [from, setFrom] = useState<number | null>(null);
+  // Default to last 24h: with millions of rows, an unbounded query is wasteful
+  // and the staff almost always cares about recent activity. Cleared with "Tout".
+  const [from, setFrom] = useState<number | null>(() => Date.now() - 24 * 60 * 60 * 1000);
   const [to, setTo] = useState<number | null>(null);
 
   const [debPlayer, setDebPlayer] = useState("");
@@ -305,6 +307,7 @@ export default function LogsPage() {
 
   const [categories, setCategories] = useState<{ category: string; count: number }[]>([]);
   const [worlds, setWorlds] = useState<{ world: string; count: number }[]>([]);
+  const [debWorld, setDebWorld] = useState("");
   const limit = 50;
   const api = useRef(createAnalyticsFetcher(headers)).current;
 
@@ -316,10 +319,11 @@ export default function LogsPage() {
       setDebAction(action);
       setDebItem(item);
       setDebSearch(searchText);
+      setDebWorld(world);
       setPage(0);
     }, 350);
     return () => clearTimeout(t);
-  }, [player, action, item, searchText]);
+  }, [player, action, item, searchText, world]);
 
   useEffect(() => {
     Promise.all([
@@ -345,7 +349,7 @@ export default function LogsPage() {
     if (debItem) params.item = debItem;
     if (level) params.level = level;
     if (debSearch) params.search = debSearch;
-    if (world) params.world = world;
+    if (debWorld) params.world = debWorld;
     if (from != null) params.from = from.toString();
     if (to != null) params.to = to.toString();
 
@@ -361,7 +365,7 @@ export default function LogsPage() {
         setInitialLoading(false);
         setRefreshing(false);
       });
-  }, [api, page, debPlayer, category, debAction, debItem, level, debSearch, world, from, to, locale]);
+  }, [api, page, debPlayer, category, debAction, debItem, level, debSearch, debWorld, from, to, locale]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
   useAutoRefresh(fetchLogs);
@@ -493,21 +497,20 @@ export default function LogsPage() {
 
         {/* Date range + world filter row */}
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3 items-center">
-          {/* World */}
+          {/* World — text input with autocomplete from known worlds */}
           <div className="relative">
             <Globe size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-            <select
+            <input
+              type="text"
+              placeholder={locale === "fr" ? "Monde" : "World"}
               value={world}
-              onChange={(e) => { setWorld(e.target.value); setPage(0); }}
-              className="w-full pl-8 pr-3 py-2 rounded-lg border border-border bg-white text-[12px] text-text focus:border-pink focus:outline-none"
-            >
-              <option value="">{locale === "fr" ? "Tous les mondes" : "All worlds"}</option>
-              {worlds.map(w => (
-                <option key={w.world} value={w.world}>
-                  {w.world}{w.count > 0 ? ` (${w.count.toLocaleString()})` : ""}
-                </option>
-              ))}
-            </select>
+              onChange={(e) => setWorld(e.target.value)}
+              list="log-worlds"
+              className="w-full pl-8 pr-3 py-2 rounded-lg border border-border bg-white text-[12px] text-text placeholder:text-text-muted focus:border-pink focus:outline-none"
+            />
+            <datalist id="log-worlds">
+              {worlds.map(w => <option key={w.world} value={w.world} />)}
+            </datalist>
           </div>
 
           {/* From */}
@@ -551,7 +554,10 @@ export default function LogsPage() {
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[11px] text-text-muted">{locale === "fr" ? "Tranche :" : "Range:"}</span>
           {(locale === "fr" ? DATE_PRESETS_FR : DATE_PRESETS_EN).map(p => {
-            const isActive = from != null && to == null && Math.abs((Date.now() - p.ms) - from) < 60_000;
+            // 5-min tolerance: presets set `from = Date.now() - p.ms`, but the
+            // page lives much longer than that — without slack the highlight
+            // would drop after a minute.
+            const isActive = from != null && to == null && Math.abs((Date.now() - p.ms) - from) < 5 * 60_000;
             return (
               <button
                 key={p.label}
