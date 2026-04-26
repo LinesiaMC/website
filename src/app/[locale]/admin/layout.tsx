@@ -9,6 +9,7 @@ import {
   ScrollText, ChevronLeft, ChevronRight, LayoutDashboard,
   Coins, Dices, Box, Shield, MessageSquare, BookOpen,
   LifeBuoy, UserCircle2, Map, LogIn, User, Briefcase, Award, Ticket,
+  ShieldAlert,
 } from "lucide-react";
 import { AdminContext, CurrentStaff } from "@/components/admin/AdminContext";
 import { hasPermission, Permission, ROLE_LABELS, ROLE_COLORS } from "@/lib/roles";
@@ -32,6 +33,7 @@ const NAV_ITEMS: { key: string; icon: typeof Newspaper; path: string; perm: Perm
   { key: "casino",     icon: Dices,           path: "/admin/analytics/casino",          perm: "analytics.view" },
   { key: "boxes",      icon: Box,             path: "/admin/analytics/boxes",           perm: "analytics.view" },
   { key: "staff",      icon: Shield,          path: "/admin/analytics/staff",           perm: "analytics.view" },
+  { key: "alerts",     icon: ShieldAlert,     path: "/admin/analytics/alerts",          perm: "alerts.view" },
   { key: "logs",       icon: ScrollText,      path: "/admin/analytics/logs",            perm: "logs.view" },
 ];
 
@@ -54,6 +56,7 @@ const NAV_LABELS: Record<string, { fr: string; en: string }> = {
   casino: { fr: "Casino", en: "Casino" },
   boxes: { fr: "Boxes", en: "Boxes" },
   staff: { fr: "Staff actions", en: "Staff actions" },
+  alerts: { fr: "Anti-Cheat", en: "Anti-Cheat" },
   logs: { fr: "Logs", en: "Logs" },
 };
 

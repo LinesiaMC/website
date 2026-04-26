@@ -51,6 +51,114 @@ const WRITE_INVALIDATE_PREFIXES = [
   "stats/", "logs", "players", "servers", "staff/",
 ];
 
+const ALERT_INVALIDATE_PREFIXES = ["alerts/"];
+
+// UPSERT one (player, detection) row in alert_stats, mirroring the
+// plugin's AlertStatsManager state. Called from /alert-event (single)
+// and /alert-stats (full snapshot replace).
+async function upsertAlertStat(
+  db: Client,
+  e: {
+    player_uuid: string;
+    player_name: string;
+    xuid?: string | null;
+    detection: string;
+    category?: string | null;
+    reliability?: string | null;
+    severity?: string | null;
+    count?: number | null;
+    violations_total?: number | null;
+    first_flag_at?: number | null;
+    last_flag_at?: number | null;
+    last_debug?: string | null;
+    server_id?: string | null;
+  },
+): Promise<void> {
+  const now = Date.now();
+  const firstAt = e.first_flag_at || now;
+  const lastAt = e.last_flag_at || now;
+  await run(
+    db,
+    `INSERT INTO alert_stats (player_uuid, player_name, xuid, detection, category, reliability, severity, count, violations_total, first_flag_at, last_flag_at, last_debug, server_id)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+     ON CONFLICT(player_uuid, detection, server_id) DO UPDATE SET
+       player_name = excluded.player_name,
+       xuid = COALESCE(excluded.xuid, alert_stats.xuid),
+       category = excluded.category,
+       reliability = excluded.reliability,
+       severity = excluded.severity,
+       count = excluded.count,
+       violations_total = excluded.violations_total,
+       last_flag_at = excluded.last_flag_at,
+       last_debug = COALESCE(excluded.last_debug, alert_stats.last_debug)`,
+    [
+      e.player_uuid,
+      e.player_name,
+      e.xuid || null,
+      e.detection,
+      e.category || "unknown",
+      e.reliability || "experimental",
+      e.severity || "low",
+      e.count || 0,
+      e.violations_total || 0,
+      firstAt,
+      lastAt,
+      e.last_debug || null,
+      e.server_id || null,
+    ],
+  );
+}
+
+// Increment-style insert for /alert-event: each event is also pushed to
+// alert_stats (count++) so the dashboard works even without a periodic
+// snapshot. The snapshot endpoint is authoritative when both are sent.
+async function bumpAlertStat(
+  db: Client,
+  e: {
+    player_uuid: string;
+    player_name: string;
+    xuid?: string | null;
+    detection: string;
+    category?: string | null;
+    reliability?: string | null;
+    severity?: string | null;
+    violation: number;
+    debug?: string | null;
+    timestamp: number;
+    server_id?: string | null;
+  },
+): Promise<void> {
+  await run(
+    db,
+    `INSERT INTO alert_stats (player_uuid, player_name, xuid, detection, category, reliability, severity, count, violations_total, first_flag_at, last_flag_at, last_debug, server_id)
+     VALUES (?,?,?,?,?,?,?,1,?,?,?,?,?)
+     ON CONFLICT(player_uuid, detection, server_id) DO UPDATE SET
+       player_name = excluded.player_name,
+       xuid = COALESCE(excluded.xuid, alert_stats.xuid),
+       category = excluded.category,
+       reliability = excluded.reliability,
+       severity = excluded.severity,
+       count = alert_stats.count + 1,
+       violations_total = alert_stats.violations_total + excluded.violations_total,
+       last_flag_at = excluded.last_flag_at,
+       last_debug = excluded.last_debug`,
+    [
+      e.player_uuid,
+      e.player_name,
+      e.xuid || null,
+      e.detection,
+      e.category || "unknown",
+      e.reliability || "experimental",
+      e.severity || "low",
+      e.violation || 0,
+      e.timestamp,
+      e.timestamp,
+      e.debug || null,
+      e.server_id || null,
+    ],
+  );
+}
+
 const API_KEY = process.env.ANALYTICS_API_KEY || "920a083dea9c7132b47ffe03b9f9340ae82947467ab44b733f980e2699515058";
 
 function checkApiKey(req: NextRequest): boolean {
@@ -174,9 +282,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
         await upsertServer(db, server_id, server_name);
         const sid = server_id || null;
 
-        // Sanctions and alias syncs can't share the high-throughput batch path
-        // (they need dedupe + cross-table mirroring) so process them inline first.
+        // Sanctions, alias syncs, and alert events can't share the high-throughput
+        // batch path (they need dedupe / UPSERT / cross-table mirroring) so process
+        // them inline first.
         let hasStaffWrite = false;
+        let hasAlertWrite = false;
         for (const e of events) {
           if (e.type === "sanction" && e.player_uuid && e.sanction_type) {
             await recordSanction(db, {
@@ -185,6 +295,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
               duration: e.duration, timestamp: e.timestamp, server_id: sid,
             });
             hasStaffWrite = true;
+          } else if (e.type === "alert-event" && e.player_uuid && e.detection) {
+            const ts = e.timestamp || Date.now();
+            await run(db,
+              `INSERT INTO alert_events (player_uuid, player_name, xuid, detection, category, reliability, severity, violation, violations_total, cheat_probability, debug, ping, platform, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+              [e.player_uuid, e.player_name || "Unknown", e.xuid || null, e.detection,
+                e.category || "unknown", e.reliability || "experimental", e.severity || "low",
+                e.violation || 0, e.violations_total || 0, e.cheat_probability || 0,
+                e.debug || null, e.ping ?? null, e.platform || null,
+                ts, sid]);
+            await bumpAlertStat(db, {
+              player_uuid: e.player_uuid, player_name: e.player_name || "Unknown",
+              xuid: e.xuid, detection: e.detection,
+              category: e.category, reliability: e.reliability, severity: e.severity,
+              violation: e.violation || 0, debug: e.debug, timestamp: ts, server_id: sid,
+            });
+            hasAlertWrite = true;
           } else if (e.type === "player-aliases" && e.player_uuid && Array.isArray(e.aliases)) {
             const now = Date.now();
             const aliasStmts: Array<{ sql: string; args: unknown[] }> = [
@@ -204,6 +330,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
           }
         }
         if (hasStaffWrite) cacheInvalidate(["staff/"]);
+        if (hasAlertWrite) cacheInvalidate(ALERT_INVALIDATE_PREFIXES);
 
         // Build one `db.batch()` payload so N events = 1 round-trip to libsql
         // instead of N sequential awaits.
@@ -396,6 +523,51 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
         // The Minecraft server is the source of truth for staff rank.
         await syncStaffFromIngame({ xuid, uuid: uuid || null, username: username || "Unknown", ingameRank: rank || null });
         return NextResponse.json({ success: true });
+      }
+
+      case "alert-event": {
+        const {
+          player_uuid, player_name, xuid, detection, category, reliability, severity,
+          violation, violations_total, cheat_probability, debug, ping, platform,
+          timestamp, server_id, server_name,
+        } = body;
+        if (!player_uuid || !player_name || !detection) {
+          return NextResponse.json({ error: "player_uuid, player_name, detection are required" }, { status: 400 });
+        }
+        await upsertServer(db, server_id, server_name);
+        const ts = timestamp || Date.now();
+        await run(db,
+          `INSERT INTO alert_events (player_uuid, player_name, xuid, detection, category, reliability, severity, violation, violations_total, cheat_probability, debug, ping, platform, timestamp, server_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [player_uuid, player_name, xuid || null, detection,
+            category || "unknown", reliability || "experimental", severity || "low",
+            violation || 0, violations_total || 0, cheat_probability || 0,
+            debug || null, ping ?? null, platform || null,
+            ts, server_id || null]);
+        await bumpAlertStat(db, {
+          player_uuid, player_name, xuid, detection,
+          category, reliability, severity,
+          violation: violation || 0, debug, timestamp: ts, server_id,
+        });
+        cacheInvalidate(ALERT_INVALIDATE_PREFIXES);
+        return NextResponse.json({ success: true });
+      }
+
+      case "alert-stats": {
+        const { stats: list, server_id, server_name, replace } = body;
+        if (!Array.isArray(list)) {
+          return NextResponse.json({ error: "stats must be an array" }, { status: 400 });
+        }
+        await upsertServer(db, server_id, server_name);
+        const sid = server_id || null;
+        if (replace) {
+          await run(db, `DELETE FROM alert_stats WHERE COALESCE(server_id,'') = COALESCE(?, '')`, [sid]);
+        }
+        for (const s of list) {
+          if (!s?.player_uuid || !s?.detection) continue;
+          await upsertAlertStat(db, { ...s, server_id: sid });
+        }
+        cacheInvalidate(ALERT_INVALIDATE_PREFIXES);
+        return NextResponse.json({ success: true, count: list.length });
       }
 
       case "cosmetics": {

@@ -17,9 +17,13 @@ import { ITEM_ACTIVITY, ACTIVITIES, type Activity } from "@/lib/activity-categor
  *    conditional aggregation instead of 5-10 sequential getOne calls.
  */
 
-async function checkAuth(req: NextRequest): Promise<boolean> {
+async function checkAuth(req: NextRequest, route: string): Promise<boolean> {
   const staff = await getCurrentStaff(req);
-  return !!staff && hasPermission(staff.role, "analytics.view");
+  if (!staff) return false;
+  if (route.startsWith("alerts/") || route === "alerts" || route.startsWith("alerts")) {
+    return hasPermission(staff.role, "alerts.view");
+  }
+  return hasPermission(staff.role, "analytics.view");
 }
 
 const DAY_MS = 86_400_000;
@@ -78,12 +82,12 @@ function fillDailyBuckets<T extends Record<string, number>>(
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-  if (!(await checkAuth(req))) {
+  const { path } = await params;
+  const route = path.join("/");
+  if (!(await checkAuth(req, route))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { path } = await params;
-  const route = path.join("/");
   const q = req.nextUrl.searchParams;
   const db = await getDb();
 
@@ -1728,7 +1732,273 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         );
       }
 
+      // ==================== ANTI-CHEAT ALERTS ====================
+      case "alerts/overview": {
+        return NextResponse.json(
+          await cached(cacheKey, CACHE_TTL, async () => {
+            const now = Date.now();
+            const sid = q.get("server_id");
+            const sf = serverFilter(sid);
+            const sWhereStat = sf.where ? `WHERE ${sf.where}` : "";
+            const sWhereEvtPrefix = sf.where ? `AND ${sf.where}` : "";
+
+            const [aggStat, recent24h, recent7d, byReliability, bySeverity] = await Promise.all([
+              getOne(db,
+                `SELECT
+                   COUNT(*) AS rowCount,
+                   COUNT(DISTINCT player_uuid) AS uniquePlayers,
+                   COUNT(DISTINCT detection) AS uniqueDetections,
+                   COALESCE(SUM(count), 0) AS totalFlags
+                 FROM alert_stats ${sWhereStat}`,
+                sf.params),
+              getOne(db,
+                `SELECT COUNT(*) AS flags, COUNT(DISTINCT player_uuid) AS players
+                 FROM alert_events WHERE timestamp >= ? ${sWhereEvtPrefix}`,
+                [now - DAY_MS, ...sf.params]),
+              getOne(db,
+                `SELECT COUNT(*) AS flags, COUNT(DISTINCT player_uuid) AS players
+                 FROM alert_events WHERE timestamp >= ? ${sWhereEvtPrefix}`,
+                [now - 7 * DAY_MS, ...sf.params]),
+              getAll(db,
+                `SELECT reliability, COALESCE(SUM(count),0) AS total
+                 FROM alert_stats ${sWhereStat}
+                 GROUP BY reliability`,
+                sf.params),
+              getAll(db,
+                `SELECT severity, COALESCE(SUM(count),0) AS total
+                 FROM alert_stats ${sWhereStat}
+                 GROUP BY severity`,
+                sf.params),
+            ]);
+
+            return {
+              totalFlags: Number((aggStat as Record<string, unknown>)?.totalFlags ?? 0),
+              uniquePlayers: Number((aggStat as Record<string, unknown>)?.uniquePlayers ?? 0),
+              uniqueDetections: Number((aggStat as Record<string, unknown>)?.uniqueDetections ?? 0),
+              flags24h: Number((recent24h as Record<string, unknown>)?.flags ?? 0),
+              players24h: Number((recent24h as Record<string, unknown>)?.players ?? 0),
+              flags7d: Number((recent7d as Record<string, unknown>)?.flags ?? 0),
+              players7d: Number((recent7d as Record<string, unknown>)?.players ?? 0),
+              byReliability: byReliability.map((r) => ({
+                reliability: String(r.reliability ?? "experimental"),
+                total: Number(r.total ?? 0),
+              })),
+              bySeverity: bySeverity.map((r) => ({
+                severity: String(r.severity ?? "low"),
+                total: Number(r.total ?? 0),
+              })),
+            };
+          }),
+        );
+      }
+
+      case "alerts/suspect-players": {
+        return NextResponse.json(
+          await cached(cacheKey, CACHE_TTL, async () => {
+            const limit = Number(q.get("limit")) || 100;
+            const sid = q.get("server_id");
+            const sf = serverFilter(sid);
+            const sWhere = sf.where ? `WHERE ${sf.where}` : "";
+            return getAll(db,
+              `SELECT
+                 player_uuid,
+                 MAX(player_name) AS player_name,
+                 MAX(xuid) AS xuid,
+                 COALESCE(SUM(count), 0) AS total_flags,
+                 COALESCE(SUM(violations_total), 0) AS total_violations,
+                 COUNT(DISTINCT detection) AS detection_types,
+                 SUM(CASE WHEN reliability = 'high' THEN count ELSE 0 END) AS high_rel_flags,
+                 SUM(CASE WHEN reliability = 'medium' THEN count ELSE 0 END) AS medium_rel_flags,
+                 SUM(CASE WHEN reliability = 'low' THEN count ELSE 0 END) AS low_rel_flags,
+                 SUM(CASE WHEN reliability = 'experimental' THEN count ELSE 0 END) AS exp_rel_flags,
+                 MIN(first_flag_at) AS first_flag_at,
+                 MAX(last_flag_at) AS last_flag_at
+               FROM alert_stats ${sWhere}
+               GROUP BY player_uuid
+               ORDER BY total_flags DESC
+               LIMIT ?`,
+              [...sf.params, limit]);
+          }),
+        );
+      }
+
+      case "alerts/detection-breakdown": {
+        return NextResponse.json(
+          await cached(cacheKey, CACHE_TTL, async () => {
+            const sid = q.get("server_id");
+            const sf = serverFilter(sid);
+            const sWhere = sf.where ? `WHERE ${sf.where}` : "";
+            return getAll(db,
+              `SELECT
+                 detection,
+                 MAX(category) AS category,
+                 MAX(reliability) AS reliability,
+                 MAX(severity) AS severity,
+                 COALESCE(SUM(count), 0) AS total_flags,
+                 COUNT(DISTINCT player_uuid) AS unique_players,
+                 MAX(last_flag_at) AS last_flag_at
+               FROM alert_stats ${sWhere}
+               GROUP BY detection
+               ORDER BY total_flags DESC`,
+              sf.params);
+          }),
+        );
+      }
+
+      case "alerts/category-breakdown": {
+        return NextResponse.json(
+          await cached(cacheKey, CACHE_TTL, async () => {
+            const sid = q.get("server_id");
+            const sf = serverFilter(sid);
+            const sWhere = sf.where ? `WHERE ${sf.where}` : "";
+            return getAll(db,
+              `SELECT category, COALESCE(SUM(count), 0) AS total_flags,
+                 COUNT(DISTINCT player_uuid) AS unique_players,
+                 COUNT(DISTINCT detection) AS detection_types
+               FROM alert_stats ${sWhere}
+               GROUP BY category
+               ORDER BY total_flags DESC`,
+              sf.params);
+          }),
+        );
+      }
+
+      case "alerts/recent": {
+        return NextResponse.json(
+          await cached(cacheKey, CACHE_TTL, async () => {
+            const limit = Number(q.get("limit")) || 100;
+            const sid = q.get("server_id");
+            const detection = q.get("detection");
+            const sf = serverFilter(sid);
+            const wheres: string[] = [];
+            const params: unknown[] = [];
+            if (sf.where) { wheres.push(sf.where); params.push(...sf.params); }
+            if (detection) { wheres.push("detection = ?"); params.push(detection); }
+            const where = wheres.length ? `WHERE ${wheres.join(" AND ")}` : "";
+            return getAll(db,
+              `SELECT id, player_uuid, player_name, xuid, detection, category, reliability, severity,
+                 violation, violations_total, cheat_probability, debug, ping, platform, timestamp, server_id
+               FROM alert_events ${where}
+               ORDER BY timestamp DESC LIMIT ?`,
+              [...params, limit]);
+          }),
+        );
+      }
+
+      case "alerts/daily-flags": {
+        return NextResponse.json(
+          await cached(cacheKey, CACHE_TTL, async () => {
+            const days = Number(q.get("days")) || 30;
+            const now = Date.now();
+            const fromTs = now - days * DAY_MS;
+            const sid = q.get("server_id");
+            const sf = serverFilter(sid);
+            const extra = sf.where ? `AND ${sf.where}` : "";
+            const rows = await getAll(db,
+              `SELECT CAST((? - timestamp) / ? AS INTEGER) AS days_ago,
+                 COUNT(*) AS flags,
+                 COUNT(DISTINCT player_uuid) AS players
+               FROM alert_events WHERE timestamp >= ? ${extra}
+               GROUP BY days_ago`,
+              [now, DAY_MS, fromTs, ...sf.params]);
+            return fillDailyBuckets(rows, days, now, { flags: 0, players: 0 });
+          }),
+        );
+      }
+
+      // alerts/player/:uuid → per-player detail (per-detection breakdown
+      // + recent events + reliability score + percentile vs server)
       default: {
+        if (path[0] === "alerts" && path[1] === "player" && path.length === 3) {
+          const result = await cached(cacheKey, CACHE_TTL, async () => {
+            const uuid = path[2];
+            const sid = q.get("server_id");
+            const sf = serverFilter(sid);
+            const sWhere = sf.where ? `AND ${sf.where}` : "";
+
+            const [stats, events, totals, peers] = await Promise.all([
+              getAll(db,
+                `SELECT detection, category, reliability, severity, count, violations_total,
+                   first_flag_at, last_flag_at, last_debug, server_id
+                 FROM alert_stats WHERE player_uuid = ? ${sWhere}
+                 ORDER BY count DESC`,
+                [uuid, ...sf.params]),
+              getAll(db,
+                `SELECT id, detection, category, reliability, severity, violation, violations_total,
+                   cheat_probability, debug, ping, platform, timestamp, server_id
+                 FROM alert_events WHERE player_uuid = ? ${sWhere}
+                 ORDER BY timestamp DESC LIMIT 200`,
+                [uuid, ...sf.params]),
+              getOne(db,
+                `SELECT COALESCE(SUM(count),0) AS total_flags,
+                   COALESCE(SUM(violations_total),0) AS total_violations,
+                   COUNT(DISTINCT detection) AS detection_types,
+                   MIN(first_flag_at) AS first_flag_at,
+                   MAX(last_flag_at) AS last_flag_at,
+                   SUM(CASE WHEN reliability = 'high' THEN count ELSE 0 END) AS high_rel_flags,
+                   SUM(CASE WHEN reliability = 'medium' THEN count ELSE 0 END) AS medium_rel_flags,
+                   SUM(CASE WHEN reliability = 'low' THEN count ELSE 0 END) AS low_rel_flags,
+                   SUM(CASE WHEN reliability = 'experimental' THEN count ELSE 0 END) AS exp_rel_flags
+                 FROM alert_stats WHERE player_uuid = ? ${sWhere}`,
+                [uuid, ...sf.params]),
+              getAll(db,
+                `SELECT player_uuid, COALESCE(SUM(count),0) AS total
+                 FROM alert_stats ${sf.where ? `WHERE ${sf.where}` : ""}
+                 GROUP BY player_uuid`,
+                sf.params),
+            ]);
+
+            const playerInfo = await getOne(db,
+              `SELECT p.uuid, p.username, p.platform, p.last_seen, p.first_seen,
+                 p.total_playtime, p.session_count, p.xuid
+               FROM players p WHERE p.uuid = ? LIMIT 1`,
+              [uuid]);
+
+            const totalsRow = (totals ?? {}) as Record<string, unknown>;
+            const playerTotal = Number(totalsRow.total_flags ?? 0);
+            const peerTotals = peers.map((r) => Number(r.total ?? 0)).sort((a, b) => a - b);
+            const n = peerTotals.length;
+            const mean = n ? peerTotals.reduce((a, b) => a + b, 0) / n : 0;
+            const variance = n ? peerTotals.reduce((a, b) => a + (b - mean) ** 2, 0) / n : 0;
+            const stdDev = Math.sqrt(variance);
+            const z = stdDev > 0.001 ? (playerTotal - mean) / stdDev : 0;
+            const cheatProbability = n >= 3 && stdDev > 0.001
+              ? Math.round((1 / (1 + Math.exp(-(z - 1.5) * 1.2))) * 1000) / 10
+              : 0;
+            const rank = peerTotals.filter((v) => v < playerTotal).length + 1;
+            const percentile = n ? Math.round((rank / n) * 100) : 0;
+
+            const high = Number(totalsRow.high_rel_flags ?? 0);
+            const medium = Number(totalsRow.medium_rel_flags ?? 0);
+            const low = Number(totalsRow.low_rel_flags ?? 0);
+            const exp = Number(totalsRow.exp_rel_flags ?? 0);
+            const totalRel = high + medium + low + exp;
+            const reliabilityScore = totalRel > 0
+              ? Math.round(((high * 1.0 + medium * 0.7 + low * 0.4 + exp * 0.15) / totalRel) * 100)
+              : 0;
+
+            return {
+              player: playerInfo,
+              totals: {
+                total_flags: playerTotal,
+                total_violations: Number(totalsRow.total_violations ?? 0),
+                detection_types: Number(totalsRow.detection_types ?? 0),
+                first_flag_at: Number(totalsRow.first_flag_at ?? 0),
+                last_flag_at: Number(totalsRow.last_flag_at ?? 0),
+                high_rel_flags: high,
+                medium_rel_flags: medium,
+                low_rel_flags: low,
+                exp_rel_flags: exp,
+              },
+              cheatProbability,
+              reliabilityScore,
+              peerStats: { mean, stdDev, sampleSize: n, rank, percentile },
+              stats,
+              events,
+            };
+          });
+          return NextResponse.json(result);
+        }
         // Handle players/:uuid
         if (path[0] === "players" && path.length === 2) {
           const result = await cached(cacheKey, CACHE_TTL, async () => {

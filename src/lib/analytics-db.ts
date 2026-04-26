@@ -348,6 +348,54 @@ export async function getDb(): Promise<Client> {
         timestamp INTEGER NOT NULL
       )`,
       `CREATE INDEX IF NOT EXISTS idx_staff_audit_ts ON staff_audit(timestamp)`,
+
+      // --- Anti-cheat alert stats (per-player + per-detection aggregate) ---
+      `CREATE TABLE IF NOT EXISTS alert_stats (
+        player_uuid TEXT NOT NULL,
+        player_name TEXT NOT NULL,
+        xuid TEXT,
+        detection TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'unknown',
+        reliability TEXT NOT NULL DEFAULT 'experimental',
+        severity TEXT NOT NULL DEFAULT 'low',
+        count INTEGER NOT NULL DEFAULT 0,
+        violations_total REAL NOT NULL DEFAULT 0,
+        first_flag_at INTEGER NOT NULL,
+        last_flag_at INTEGER NOT NULL,
+        last_debug TEXT,
+        server_id TEXT,
+        PRIMARY KEY (player_uuid, detection, server_id)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_alert_stats_player ON alert_stats(player_uuid)`,
+      `CREATE INDEX IF NOT EXISTS idx_alert_stats_xuid ON alert_stats(xuid)`,
+      `CREATE INDEX IF NOT EXISTS idx_alert_stats_detection ON alert_stats(detection)`,
+      `CREATE INDEX IF NOT EXISTS idx_alert_stats_category ON alert_stats(category)`,
+      `CREATE INDEX IF NOT EXISTS idx_alert_stats_last ON alert_stats(last_flag_at)`,
+
+      // --- Anti-cheat alert event stream (raw individual flags) ---
+      `CREATE TABLE IF NOT EXISTS alert_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        player_uuid TEXT NOT NULL,
+        player_name TEXT NOT NULL,
+        xuid TEXT,
+        detection TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'unknown',
+        reliability TEXT NOT NULL DEFAULT 'experimental',
+        severity TEXT NOT NULL DEFAULT 'low',
+        violation REAL NOT NULL DEFAULT 0,
+        violations_total REAL NOT NULL DEFAULT 0,
+        cheat_probability REAL NOT NULL DEFAULT 0,
+        debug TEXT,
+        ping INTEGER,
+        platform TEXT,
+        timestamp INTEGER NOT NULL,
+        server_id TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_alert_events_player ON alert_events(player_uuid)`,
+      `CREATE INDEX IF NOT EXISTS idx_alert_events_detection ON alert_events(detection)`,
+      `CREATE INDEX IF NOT EXISTS idx_alert_events_category ON alert_events(category)`,
+      `CREATE INDEX IF NOT EXISTS idx_alert_events_ts ON alert_events(timestamp)`,
+      `CREATE INDEX IF NOT EXISTS idx_alert_events_server ON alert_events(server_id)`,
     ]);
 
     // --- articles: image + published columns (idempotent) ---

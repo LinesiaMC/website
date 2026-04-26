@@ -41,11 +41,12 @@ export type Permission =
   | "community.view"
   | "community.moderate"
   | "community.ban"
-  | "analytics.view";
+  | "analytics.view"
+  | "alerts.view";
 
 export const PERMISSIONS: Permission[] = [
   "articles.manage", "wiki.manage", "roadmap.manage",
-  "logs.view", "analytics.view", "community.view",
+  "logs.view", "analytics.view", "alerts.view", "community.view",
   "community.moderate", "community.ban",
   "tickets.view", "tickets.respond", "tickets.close", "tickets.admin_category",
   "permissions.manage",
@@ -57,6 +58,7 @@ export const PERMISSION_LABELS: Record<Permission, { fr: string; en: string; gro
   "roadmap.manage":          { fr: "Gérer la roadmap",         en: "Manage roadmap",         group: "content" },
   "logs.view":               { fr: "Voir les logs",            en: "View logs",              group: "data" },
   "analytics.view":          { fr: "Voir les analytics",       en: "View analytics",         group: "data" },
+  "alerts.view":             { fr: "Voir les alertes anti-cheat", en: "View anti-cheat alerts", group: "data" },
   "community.view":          { fr: "Voir la communauté",       en: "View community",         group: "data" },
   "community.moderate":      { fr: "Modérer les fils",         en: "Moderate threads",       group: "community" },
   "community.ban":           { fr: "Bannir de la communauté",  en: "Ban from community",     group: "community" },
@@ -78,42 +80,42 @@ export const PERMISSION_LABELS: Record<Permission, { fr: string; en: string; gro
 export const DEFAULT_PERMISSIONS: Record<StaffRole, Record<Permission, boolean>> = {
   member: {
     "articles.manage": false, "wiki.manage": false, "roadmap.manage": false,
-    "logs.view": false, "analytics.view": false, "community.view": false,
+    "logs.view": false, "analytics.view": false, "alerts.view": false, "community.view": false,
     "community.moderate": false, "community.ban": false,
     "tickets.view": false, "tickets.respond": false, "tickets.close": false, "tickets.admin_category": false,
     "permissions.manage": false,
   },
   guide: {
     "articles.manage": false, "wiki.manage": false, "roadmap.manage": false,
-    "logs.view": false, "analytics.view": true, "community.view": true,
+    "logs.view": false, "analytics.view": true, "alerts.view": false, "community.view": true,
     "community.moderate": false, "community.ban": false,
     "tickets.view": true, "tickets.respond": true, "tickets.close": false, "tickets.admin_category": false,
     "permissions.manage": false,
   },
   moderator: {
     "articles.manage": false, "wiki.manage": true, "roadmap.manage": false,
-    "logs.view": true, "analytics.view": true, "community.view": true,
+    "logs.view": true, "analytics.view": true, "alerts.view": true, "community.view": true,
     "community.moderate": true, "community.ban": false,
     "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": false,
     "permissions.manage": false,
   },
   super_moderator: {
     "articles.manage": true, "wiki.manage": true, "roadmap.manage": true,
-    "logs.view": true, "analytics.view": true, "community.view": true,
+    "logs.view": true, "analytics.view": true, "alerts.view": true, "community.view": true,
     "community.moderate": true, "community.ban": true,
     "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": false,
     "permissions.manage": false,
   },
   admin: {
     "articles.manage": true, "wiki.manage": true, "roadmap.manage": true,
-    "logs.view": true, "analytics.view": true, "community.view": true,
+    "logs.view": true, "analytics.view": true, "alerts.view": true, "community.view": true,
     "community.moderate": true, "community.ban": true,
     "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": true,
     "permissions.manage": false,
   },
   founder: {
     "articles.manage": true, "wiki.manage": true, "roadmap.manage": true,
-    "logs.view": true, "analytics.view": true, "community.view": true,
+    "logs.view": true, "analytics.view": true, "alerts.view": true, "community.view": true,
     "community.moderate": true, "community.ban": true,
     "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": true,
     "permissions.manage": true,
