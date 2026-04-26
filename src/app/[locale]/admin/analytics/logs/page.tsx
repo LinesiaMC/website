@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { ScrollText, Search, Activity, ChevronLeft, ChevronRight, AlertTriangle, Info, X, MapPin, Package, User, Clock, Skull, Swords, Backpack, Sparkles } from "lucide-react";
+import { ScrollText, Search, Activity, ChevronLeft, ChevronRight, AlertTriangle, Info, X, MapPin, Package, User, Clock, Skull, Swords, Backpack, Sparkles, Calendar, Globe } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatDate } from "@/components/admin/AnalyticsAPI";
 import { useAutoRefresh } from "@/lib/useAutoRefresh";
@@ -63,6 +63,33 @@ const KNOWN_ACTIONS: Record<string, string[]> = {
   ],
   trade: ["CosmeticTrade", "TradeReceive"],
 };
+
+// <input type="datetime-local"> needs "YYYY-MM-DDTHH:mm" in *local* time;
+// `Date#toISOString` gives UTC, so do the offset shift manually.
+function msToLocalInput(ms: number | null): string {
+  if (ms == null) return "";
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function localInputToMs(value: string): number | null {
+  if (!value) return null;
+  const t = new Date(value).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+const DATE_PRESETS_FR = [
+  { label: "1h",   ms: 60 * 60 * 1000 },
+  { label: "24h",  ms: 24 * 60 * 60 * 1000 },
+  { label: "7j",   ms: 7 * 24 * 60 * 60 * 1000 },
+  { label: "30j",  ms: 30 * 24 * 60 * 60 * 1000 },
+];
+const DATE_PRESETS_EN = [
+  { label: "1h",   ms: 60 * 60 * 1000 },
+  { label: "24h",  ms: 24 * 60 * 60 * 1000 },
+  { label: "7d",   ms: 7 * 24 * 60 * 60 * 1000 },
+  { label: "30d",  ms: 30 * 24 * 60 * 60 * 1000 },
+];
 
 function parseDeathDetail(detail: string | null): { cause?: string; killer?: string; killer_uuid?: string; victim_inventory?: { name: string; count: number }[]; killer_inventory?: { name: string; count: number }[]; raw?: string } | null {
   if (!detail) return null;
@@ -266,6 +293,10 @@ export default function LogsPage() {
   const [item, setItem] = useState("");
   const [level, setLevel] = useState("");
   const [searchText, setSearchText] = useState("");
+  const [world, setWorld] = useState("");
+  // Date range: stored as ms. null = no bound. Presets only set `from`.
+  const [from, setFrom] = useState<number | null>(null);
+  const [to, setTo] = useState<number | null>(null);
 
   const [debPlayer, setDebPlayer] = useState("");
   const [debAction, setDebAction] = useState("");
@@ -273,6 +304,7 @@ export default function LogsPage() {
   const [debSearch, setDebSearch] = useState("");
 
   const [categories, setCategories] = useState<{ category: string; count: number }[]>([]);
+  const [worlds, setWorlds] = useState<{ world: string; count: number }[]>([]);
   const limit = 50;
   const api = useRef(createAnalyticsFetcher(headers)).current;
 
@@ -293,9 +325,11 @@ export default function LogsPage() {
     Promise.all([
       api("logs/categories"),
       api("logs/stats"),
-    ]).then(([cats, s]) => {
+      api("logs/worlds"),
+    ]).then(([cats, s, w]) => {
       setCategories(cats);
       setStats(s);
+      setWorlds(w);
     }).catch(() => {});
   }, [api]);
 
@@ -311,6 +345,9 @@ export default function LogsPage() {
     if (debItem) params.item = debItem;
     if (level) params.level = level;
     if (debSearch) params.search = debSearch;
+    if (world) params.world = world;
+    if (from != null) params.from = from.toString();
+    if (to != null) params.to = to.toString();
 
     api("logs", params)
       .then((data) => {
@@ -324,7 +361,7 @@ export default function LogsPage() {
         setInitialLoading(false);
         setRefreshing(false);
       });
-  }, [api, page, debPlayer, category, debAction, debItem, level, debSearch, locale]);
+  }, [api, page, debPlayer, category, debAction, debItem, level, debSearch, world, from, to, locale]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
   useAutoRefresh(fetchLogs);
@@ -394,7 +431,7 @@ export default function LogsPage() {
       )}
 
       {/* Filters */}
-      <div className="mc-card p-4 mb-4">
+      <div className="mc-card p-4 mb-4 space-y-3">
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
           <div className="relative">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
@@ -452,6 +489,95 @@ export default function LogsPage() {
             <option value="info">Info</option>
             <option value="warning">Warning</option>
           </select>
+        </div>
+
+        {/* Date range + world filter row */}
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 items-center">
+          {/* World */}
+          <div className="relative">
+            <Globe size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+            <select
+              value={world}
+              onChange={(e) => { setWorld(e.target.value); setPage(0); }}
+              className="w-full pl-8 pr-3 py-2 rounded-lg border border-border bg-white text-[12px] text-text focus:border-pink focus:outline-none"
+            >
+              <option value="">{locale === "fr" ? "Tous les mondes" : "All worlds"}</option>
+              {worlds.map(w => (
+                <option key={w.world} value={w.world}>
+                  {w.world}{w.count > 0 ? ` (${w.count.toLocaleString()})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* From */}
+          <div className="relative md:col-span-2">
+            <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+            <input
+              type="datetime-local"
+              value={msToLocalInput(from)}
+              onChange={(e) => { setFrom(localInputToMs(e.target.value)); setPage(0); }}
+              className="w-full pl-8 pr-3 py-2 rounded-lg border border-border bg-white text-[12px] text-text focus:border-pink focus:outline-none"
+              title={locale === "fr" ? "Date de debut" : "From"}
+            />
+          </div>
+
+          {/* To */}
+          <div className="relative md:col-span-2">
+            <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+            <input
+              type="datetime-local"
+              value={msToLocalInput(to)}
+              onChange={(e) => { setTo(localInputToMs(e.target.value)); setPage(0); }}
+              className="w-full pl-8 pr-3 py-2 rounded-lg border border-border bg-white text-[12px] text-text focus:border-pink focus:outline-none"
+              title={locale === "fr" ? "Date de fin" : "To"}
+            />
+          </div>
+
+          {/* Clear */}
+          {(from != null || to != null) && (
+            <button
+              type="button"
+              onClick={() => { setFrom(null); setTo(null); setPage(0); }}
+              className="px-3 py-2 rounded-lg border border-border bg-white text-[12px] text-text-sub hover:bg-bg-soft transition-colors flex items-center justify-center gap-1"
+            >
+              <X size={12} />
+              {locale === "fr" ? "Effacer" : "Clear"}
+            </button>
+          )}
+        </div>
+
+        {/* Quick presets — set `from = now - N`, leave `to` open */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-text-muted">{locale === "fr" ? "Tranche :" : "Range:"}</span>
+          {(locale === "fr" ? DATE_PRESETS_FR : DATE_PRESETS_EN).map(p => {
+            const isActive = from != null && to == null && Math.abs((Date.now() - p.ms) - from) < 60_000;
+            return (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => { setFrom(Date.now() - p.ms); setTo(null); setPage(0); }}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                  isActive
+                    ? "bg-pink text-white"
+                    : "bg-bg-soft text-text-sub hover:bg-pink/10 hover:text-pink"
+                }`}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => { setFrom(null); setTo(null); setPage(0); }}
+            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+              from == null && to == null
+                ? "bg-pink text-white"
+                : "bg-bg-soft text-text-sub hover:bg-pink/10 hover:text-pink"
+            }`}
+          >
+            {locale === "fr" ? "Tout" : "All"}
+          </button>
         </div>
       </div>
 

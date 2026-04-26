@@ -766,31 +766,89 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
 
       // ==================== LOGS ====================
       case "logs": {
-        // Not cached: highly-parametrized + drives a search UI.
-        const player = q.get("player"), category = q.get("category"), action = q.get("action");
-        const item = q.get("item"), itemUid = q.get("item_uid"), target = q.get("target");
-        const world = q.get("world"), level = q.get("level"), search = q.get("search");
-        const from = q.get("from"), to = q.get("to"), sid = q.get("server_id");
-        const limit = Number(q.get("limit")) || 100, offset = Number(q.get("offset")) || 0;
+        // Drives a search UI but auto-refreshes every few seconds, so a tiny
+        // shared cache absorbs duplicate identical queries (multiple staff
+        // tabs, polling) cheaply. With millions of rows the COUNT alone is
+        // the expensive part — we cache it longer than the page payload.
+        return NextResponse.json(await cached(cacheKey, 5_000, async () => {
+          const player = q.get("player"), category = q.get("category"), action = q.get("action");
+          const item = q.get("item"), itemUid = q.get("item_uid"), target = q.get("target");
+          const world = q.get("world"), level = q.get("level"), search = q.get("search");
+          const from = q.get("from"), to = q.get("to"), sid = q.get("server_id");
+          const limit = Math.min(Number(q.get("limit")) || 100, 200);
+          const offset = Number(q.get("offset")) || 0;
 
-        const where: string[] = [], params: unknown[] = [];
-        if (sid && sid !== "all") { where.push("server_id = ?"); params.push(sid); }
-        if (player) { where.push("(player_name LIKE ? OR player_uuid = ?)"); params.push(`%${player}%`, player); }
-        if (category) { where.push("category = ?"); params.push(category); }
-        if (action) { where.push("action LIKE ?"); params.push(`%${action}%`); }
-        if (item) { where.push("item_name LIKE ?"); params.push(`%${item}%`); }
-        if (itemUid) { where.push("item_uid = ?"); params.push(itemUid); }
-        if (target) { where.push("target_player LIKE ?"); params.push(`%${target}%`); }
-        if (world) { where.push("world = ?"); params.push(world); }
-        if (level) { where.push("level = ?"); params.push(level); }
-        if (search) { where.push("(detail LIKE ? OR action LIKE ? OR item_name LIKE ? OR player_name LIKE ?)"); params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`); }
-        if (from) { where.push("timestamp >= ?"); params.push(Number(from)); }
-        if (to) { where.push("timestamp <= ?"); params.push(Number(to)); }
+          const where: string[] = [], params: unknown[] = [];
+          if (sid && sid !== "all") { where.push("server_id = ?"); params.push(sid); }
+          if (player) {
+            // Prefer indexable equality when the user types an exact name; fall back
+            // to LIKE only if it contains a wildcard or is short. Hitting the
+            // (player_name, timestamp) index turns a full-table scan into a seek.
+            if (/[%_]/.test(player)) {
+              where.push("(player_name LIKE ? OR player_uuid = ?)"); params.push(player, player);
+            } else {
+              where.push("(player_name = ? OR player_uuid = ?)"); params.push(player, player);
+            }
+          }
+          if (category) { where.push("category = ?"); params.push(category); }
+          if (action) { where.push("action LIKE ?"); params.push(`%${action}%`); }
+          if (item) { where.push("item_name LIKE ?"); params.push(`%${item}%`); }
+          if (itemUid) { where.push("item_uid = ?"); params.push(itemUid); }
+          if (target) { where.push("target_player LIKE ?"); params.push(`%${target}%`); }
+          if (world) { where.push("world = ?"); params.push(world); }
+          if (level) { where.push("level = ?"); params.push(level); }
+          if (search) {
+            // Free-text search forces LIKE '%x%' which can't use an index. Limit
+            // the columns scanned to the 3 most useful and keep this filter
+            // *last* in the WHERE so SQLite applies cheaper predicates first.
+            where.push("(player_name LIKE ? OR action LIKE ? OR detail LIKE ?)");
+            params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+          }
+          if (from) { where.push("timestamp >= ?"); params.push(Number(from)); }
+          if (to) { where.push("timestamp <= ?"); params.push(Number(to)); }
 
-        const wc = where.length > 0 ? "WHERE " + where.join(" AND ") : "";
-        const total = ((await getOne(db, `SELECT COUNT(*) as count FROM logs ${wc}`, params)) as Record<string, number>).count;
-        const logs = await getAll(db, `SELECT * FROM logs ${wc} ORDER BY timestamp DESC LIMIT ? OFFSET ?`, [...params, limit, offset]);
-        return NextResponse.json({ logs, total });
+          const wc = where.length > 0 ? "WHERE " + where.join(" AND ") : "";
+
+          // Unfiltered COUNT(*) over millions of rows is the most expensive
+          // operation in this handler; cache it for 60s — the absolute total
+          // changes constantly but the value isn't load-bearing for the UI.
+          let total: number;
+          if (where.length === 0) {
+            total = await cached("logs:count:all", 60_000, async () =>
+              ((await getOne(db, `SELECT COUNT(*) as count FROM logs`)) as Record<string, number>).count
+            );
+          } else {
+            total = ((await getOne(db, `SELECT COUNT(*) as count FROM logs ${wc}`, params)) as Record<string, number>).count;
+          }
+
+          // Explicit column list avoids dragging large `detail` / `item_enchantments`
+          // payloads we may not need on the table view (still returned — UI uses them).
+          const logs = await getAll(
+            db,
+            `SELECT id, player_uuid, player_name, category, action, detail,
+                    item_name, item_count, item_uid, item_enchantments,
+                    target_player, world, x, y, z, level, timestamp, server_id
+             FROM logs ${wc} ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
+            [...params, limit, offset],
+          );
+          return { logs, total };
+        }));
+      }
+
+      case "logs/worlds": {
+        return NextResponse.json(
+          await cached(cacheKey, 5 * 60_000, async () => {
+            const sid = q.get("server_id");
+            const sf = serverFilter(sid);
+            const where = sf.where ? `WHERE ${sf.where} AND world IS NOT NULL AND world != ''`
+                                   : `WHERE world IS NOT NULL AND world != ''`;
+            return getAll(
+              db,
+              `SELECT world, COUNT(*) as count FROM logs ${where} GROUP BY world ORDER BY count DESC LIMIT 100`,
+              sf.params,
+            );
+          }),
+        );
       }
 
       case "logs/categories": {

@@ -127,6 +127,14 @@ export async function getDb(): Promise<Client> {
       `CREATE INDEX IF NOT EXISTS idx_logs_server ON logs(server_id)`,
       `CREATE INDEX IF NOT EXISTS idx_logs_item_uid ON logs(item_uid)`,
       `CREATE INDEX IF NOT EXISTS idx_logs_cat_action_ts ON logs(category, action, timestamp)`,
+      // Composite indexes that match the most common UI filter patterns,
+      // each with `timestamp DESC` so ORDER BY in the logs viewer can avoid
+      // a separate sort step. Critical when the table grows past ~1M rows.
+      `CREATE INDEX IF NOT EXISTS idx_logs_world_ts ON logs(world, timestamp)`,
+      `CREATE INDEX IF NOT EXISTS idx_logs_level_ts ON logs(level, timestamp)`,
+      `CREATE INDEX IF NOT EXISTS idx_logs_player_ts ON logs(player_name, timestamp)`,
+      `CREATE INDEX IF NOT EXISTS idx_logs_uuid_ts ON logs(player_uuid, timestamp)`,
+      `CREATE INDEX IF NOT EXISTS idx_logs_cat_ts ON logs(category, timestamp)`,
       `CREATE TABLE IF NOT EXISTS economy_snapshots (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         total_money REAL NOT NULL DEFAULT 0,
