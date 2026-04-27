@@ -525,6 +525,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
         return NextResponse.json({ success: true });
       }
 
+      case "player-rank": {
+        const { xuid, uuid, username, rank, rank_color, timestamp, server_id, server_name } = body;
+        if (!xuid) return NextResponse.json({ error: "xuid required" }, { status: 400 });
+        await upsertServer(db, server_id, server_name);
+        const now = timestamp || Date.now();
+        await run(db,
+          `INSERT INTO player_profile_extra (xuid, uuid, username, rank, rank_color, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(xuid) DO UPDATE SET
+             rank=excluded.rank,
+             rank_color=excluded.rank_color,
+             username=COALESCE(excluded.username, username),
+             uuid=COALESCE(excluded.uuid, uuid),
+             updated_at=excluded.updated_at`,
+          [xuid, uuid || null, username || null, rank || null, rank_color || null, now]);
+        if (uuid) {
+          await run(db, `UPDATE players SET xuid = ? WHERE uuid = ? AND (xuid IS NULL OR xuid = '')`, [xuid, uuid]);
+        }
+        await syncStaffFromIngame({ xuid, uuid: uuid || null, username: username || "Unknown", ingameRank: rank || null });
+        return NextResponse.json({ success: true });
+      }
+
       case "alert-event": {
         const {
           player_uuid, player_name, xuid, detection, category, reliability, severity,
