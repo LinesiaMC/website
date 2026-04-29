@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb, getOne, getAll, serverFilter } from "@/lib/analytics-db";
 import { cached } from "@/lib/query-cache";
 import { getCurrentStaff } from "@/lib/auth";
-import { hasPermission } from "@/lib/roles";
+import { hasPermissionForStaff } from "@/lib/permissions";
 import { ITEM_ACTIVITY, ACTIVITIES, type Activity } from "@/lib/activity-categories";
 
 /**
@@ -20,10 +20,13 @@ import { ITEM_ACTIVITY, ACTIVITIES, type Activity } from "@/lib/activity-categor
 async function checkAuth(req: NextRequest, route: string): Promise<boolean> {
   const staff = await getCurrentStaff(req);
   if (!staff) return false;
-  if (route.startsWith("alerts/") || route === "alerts" || route.startsWith("alerts")) {
-    return hasPermission(staff.role, "alerts.view");
+  if (route === "alerts" || route.startsWith("alerts/")) {
+    return hasPermissionForStaff(staff, "alerts.view");
   }
-  return hasPermission(staff.role, "analytics.view");
+  if (route === "logs" || route.startsWith("logs/")) {
+    return hasPermissionForStaff(staff, "logs.view");
+  }
+  return hasPermissionForStaff(staff, "analytics.view");
 }
 
 const DAY_MS = 86_400_000;

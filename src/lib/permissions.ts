@@ -1,4 +1,5 @@
 import { getDb, getAll, run } from "./analytics-db";
+import { cacheInvalidate } from "./query-cache";
 import {
   StaffRole, Permission, PERMISSIONS, ROLES,
   DEFAULT_PERMISSIONS,
@@ -9,6 +10,11 @@ export type PermissionMap = Record<StaffRole, Record<Permission, boolean>>;
 let cache: PermissionMap | null = null;
 let cacheBuiltAt = 0;
 const CACHE_TTL_MS = 30_000;
+
+// Per-staff extras cache (small, hot path: hasPermissionForStaff is called
+// on every gated request). Keyed by staff_id.
+const extrasCache = new Map<string, { value: Permission[]; expires: number }>();
+const EXTRAS_TTL_MS = 30_000;
 
 function buildDefault(): PermissionMap {
   return JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS));
@@ -44,6 +50,14 @@ export async function getPermissionMap(opts: { fresh?: boolean } = {}): Promise<
 export function invalidatePermissionCache(): void {
   cache = null;
   cacheBuiltAt = 0;
+  // Role-permission changes also flip what each staff member can see in
+  // analytics dashboards; punch through the read cache for staff/auth views.
+  cacheInvalidate(["staff/", "auth/"]);
+}
+
+export function invalidateStaffExtrasCache(staffId?: string): void {
+  if (staffId) extrasCache.delete(staffId);
+  else extrasCache.clear();
 }
 
 export async function hasPermissionDb(role: StaffRole, perm: Permission): Promise<boolean> {
@@ -109,13 +123,18 @@ export async function bulkSetPermissions(
 // =================================================================
 
 export async function listStaffExtras(staffId: string): Promise<Permission[]> {
+  const now = Date.now();
+  const hit = extrasCache.get(staffId);
+  if (hit && hit.expires > now) return hit.value;
   const db = await getDb();
   const rows = await getAll(db,
     "SELECT permission FROM staff_extra_permissions WHERE staff_id = ? AND allowed = 1",
     [staffId]);
-  return rows
+  const value = rows
     .map((r) => r.permission as Permission)
     .filter((p): p is Permission => PERMISSIONS.includes(p));
+  extrasCache.set(staffId, { value, expires: now + EXTRAS_TTL_MS });
+  return value;
 }
 
 export async function listAllExtras(): Promise<Record<string, Permission[]>> {
@@ -141,6 +160,8 @@ export async function grantStaffExtra(staffId: string, permission: Permission, a
      ON CONFLICT(staff_id, permission) DO UPDATE SET
        allowed = 1, granted_at = excluded.granted_at, granted_by = excluded.granted_by`,
     [staffId, permission, Date.now(), actor]);
+  invalidateStaffExtrasCache(staffId);
+  cacheInvalidate(["staff/", "auth/"]);
 }
 
 export async function revokeStaffExtra(staffId: string, permission: Permission): Promise<void> {
@@ -148,11 +169,15 @@ export async function revokeStaffExtra(staffId: string, permission: Permission):
   await run(db,
     "DELETE FROM staff_extra_permissions WHERE staff_id = ? AND permission = ?",
     [staffId, permission]);
+  invalidateStaffExtrasCache(staffId);
+  cacheInvalidate(["staff/", "auth/"]);
 }
 
 export async function revokeAllStaffExtras(staffId: string): Promise<void> {
   const db = await getDb();
   await run(db, "DELETE FROM staff_extra_permissions WHERE staff_id = ?", [staffId]);
+  invalidateStaffExtrasCache(staffId);
+  cacheInvalidate(["staff/", "auth/"]);
 }
 
 /** Merges role defaults (+ DB overrides) with per-staff extra grants. */

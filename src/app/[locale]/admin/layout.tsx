@@ -75,15 +75,32 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    (async () => {
+    let cancelled = false;
+    const load = async () => {
       try {
         const res = await fetch("/api/auth/me", { cache: "no-store" });
         const data = await res.json();
+        if (cancelled) return;
         setStaff(data.staff);
         if (data.permissions) setPermissions(data.permissions);
+        // If the session was invalidated server-side (demote, revoke), reflect
+        // it immediately in the UI instead of waiting for the next mount.
+        if (!data.staff) setPermissions({});
       } catch { /* ignore */ }
-      setReady(true);
-    })();
+      if (!cancelled) setReady(true);
+    };
+    load();
+    // Periodic refresh: picks up permission changes (matrix edit, per-user
+    // grant/revoke, in-game role change) within a couple of minutes, and
+    // logs the user out of the panel if their session was revoked.
+    const interval = window.setInterval(load, 120_000);
+    const onFocus = () => { void load(); };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
   }, []);
 
   const headers = useCallback(() => ({ "Content-Type": "application/json" }), []);
@@ -161,7 +178,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const currentNavItem = [...NAV_ITEMS]
     .sort((a, b) => b.path.length - a.path.length)
     .find((item) => isActive(item.path));
-  const accessDenied = !!currentNavItem && !can(currentNavItem.perm);
+  // Deny by default for admin sub-routes we don't know about — prevents a
+  // future page added without a NAV_ITEMS entry from rendering unprotected.
+  const onAdminSubroute = pathname.startsWith(`/${locale}/admin`);
+  const accessDenied = onAdminSubroute && (!currentNavItem || !can(currentNavItem.perm));
 
   const roleColor = ROLE_COLORS[staff.role];
   const avatarUrl = staff.discordAvatar && staff.discordId

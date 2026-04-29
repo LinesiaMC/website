@@ -1,6 +1,12 @@
 import { randomBytes } from "crypto";
 import { getDb, getOne, run } from "./analytics-db";
 import { ingameRankToStaffRole, INGAME_RANK_LABELS, IngameRank } from "./roles";
+import { cacheInvalidate } from "./query-cache";
+import { invalidateStaffExtrasCache } from "./permissions";
+
+// Read-cache prefixes that go stale when a staff row appears/disappears
+// (staff dashboard aggregates, staff lists, stats overview).
+const STAFF_INVALIDATE_PREFIXES = ["staff/", "stats/", "auth/"];
 
 /**
  * Source-of-truth for staff status: the in-game server.
@@ -68,12 +74,14 @@ export async function syncStaffFromIngame(params: {
   // CASE 1: rank is non-staff → ensure no ingame staff row remains.
   if (!targetRole) {
     if (existingIngame) {
-      await run(db, "DELETE FROM staff_sessions WHERE staff_id = ?", [existingIngame.id]);
-      await run(db, "DELETE FROM staff_extra_permissions WHERE staff_id = ?", [existingIngame.id]);
-      await run(db, "DELETE FROM staff_users WHERE id = ?", [existingIngame.id]);
-      recordAudit("ingame-sync", "staff.demote",
-        String(existingIngame.id),
+      const exId = String(existingIngame.id);
+      await run(db, "DELETE FROM staff_sessions WHERE staff_id = ?", [exId]);
+      await run(db, "DELETE FROM staff_extra_permissions WHERE staff_id = ?", [exId]);
+      await run(db, "DELETE FROM staff_users WHERE id = ?", [exId]);
+      recordAudit("ingame-sync", "staff.demote", exId,
         `${username} (xuid=${xuid}) lost staff role (was ${existingIngame.role}, now rank=${ingameRank ?? "none"})`);
+      invalidateStaffExtrasCache(exId);
+      cacheInvalidate(STAFF_INVALIDATE_PREFIXES);
     }
     return;
   }
@@ -97,9 +105,12 @@ export async function syncStaffFromIngame(params: {
     // If a separate ingame-sourced row was previously created for this xuid,
     // drop it now that the manual row owns the identity.
     if (existingIngame) {
-      await run(db, "DELETE FROM staff_sessions WHERE staff_id = ?", [existingIngame.id]);
-      await run(db, "DELETE FROM staff_extra_permissions WHERE staff_id = ?", [existingIngame.id]);
-      await run(db, "DELETE FROM staff_users WHERE id = ?", [existingIngame.id]);
+      const exId = String(existingIngame.id);
+      await run(db, "DELETE FROM staff_sessions WHERE staff_id = ?", [exId]);
+      await run(db, "DELETE FROM staff_extra_permissions WHERE staff_id = ?", [exId]);
+      await run(db, "DELETE FROM staff_users WHERE id = ?", [exId]);
+      invalidateStaffExtrasCache(exId);
+      cacheInvalidate(STAFF_INVALIDATE_PREFIXES);
     }
     return;
   }
@@ -117,6 +128,7 @@ export async function syncStaffFromIngame(params: {
       recordAudit("ingame-sync", "staff.role-change",
         String(existingIngame.id),
         `${username} role: ${existingIngame.role} → ${targetRole} (rank=${ingameRank})`);
+      cacheInvalidate(STAFF_INVALIDATE_PREFIXES);
     } else {
       await run(db,
         "UPDATE staff_users SET ingame_rank = ? WHERE id = ?",
@@ -137,6 +149,7 @@ export async function syncStaffFromIngame(params: {
     [id, microsoftId, microsoftGamertag, microsoftDisplayName, username, targetRole, Date.now(), ingameRank, xuid]);
   recordAudit("ingame-sync", "staff.promote", id,
     `${username} (xuid=${xuid}) promoted to ${targetRole} (rank=${ingameRank})`);
+  cacheInvalidate(STAFF_INVALIDATE_PREFIXES);
 }
 
 export function ingameRankInfo(rank: string | null | undefined) {

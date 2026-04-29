@@ -7,6 +7,7 @@ import {
   ShieldAlert, ShieldCheck, ShieldX, Activity, AlertTriangle,
   Users as UsersIcon, Target, TrendingUp, Clock,
   Crosshair, Move, Network, Wrench, HelpCircle, Zap,
+  Trash2, Loader2, X,
 } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { createAnalyticsFetcher, formatNumber, formatDate } from "@/components/admin/AnalyticsAPI";
@@ -156,7 +157,12 @@ function timeAgo(ts: number, locale: string): string {
 
 export default function AlertsPage() {
   const { locale } = useParams<{ locale: string }>();
-  const { headers, can } = useAdmin();
+  const { headers, can, staff } = useAdmin();
+  const isFounder = staff?.role === "founder";
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetMsg, setResetMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [resetConfirmText, setResetConfirmText] = useState("");
   const [overview, setOverview] = useState<AlertOverview | null>(null);
   const [suspects, setSuspects] = useState<SuspectPlayer[]>([]);
   const [detections, setDetections] = useState<DetectionRow[]>([]);
@@ -193,6 +199,32 @@ export default function AlertsPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
   useAutoRefresh(loadData);
+
+  const performReset = useCallback(async () => {
+    setResetting(true);
+    setResetMsg(null);
+    try {
+      const res = await fetch("/api/staff/anticheat/reset", { method: "POST", headers: headers() });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setResetMsg({ kind: "err",
+          text: (locale === "fr" ? "Échec : " : "Failed: ") + (j?.error || res.statusText || "unknown_error") });
+        return;
+      }
+      const stats = j?.deleted?.stats ?? 0;
+      const events = j?.deleted?.events ?? 0;
+      setResetMsg({ kind: "ok", text: locale === "fr"
+        ? `Reset effectué — ${stats} stats / ${events} events supprimés.`
+        : `Reset done — ${stats} stats / ${events} events removed.` });
+      setResetConfirmText("");
+      loadData();
+      window.setTimeout(() => { setResetOpen(false); setResetMsg(null); }, 1800);
+    } catch {
+      setResetMsg({ kind: "err", text: locale === "fr" ? "Erreur réseau." : "Network error." });
+    } finally {
+      setResetting(false);
+    }
+  }, [headers, locale, loadData]);
 
   const filteredDetections = useMemo(() => {
     return detections.filter((d) => {
@@ -278,7 +310,95 @@ export default function AlertsPage() {
               : "Detections raised by server-side AlertStatsManager, aggregated by player, type and reliability."}
           </p>
         </div>
+        {isFounder && (
+          <button
+            type="button"
+            onClick={() => { setResetOpen(true); setResetMsg(null); setResetConfirmText(""); }}
+            className="inline-flex items-center gap-2 self-start px-3 py-2 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition text-[12px] font-semibold"
+          >
+            <Trash2 size={14} />
+            {locale === "fr" ? "Réinitialiser les stats" : "Reset stats"}
+          </button>
+        )}
       </div>
+
+      {isFounder && resetOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => { if (!resetting) setResetOpen(false); }}
+        >
+          <div
+            className="mc-card w-full max-w-[460px] p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0">
+                  <AlertTriangle size={18} className="text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-bold text-text">
+                    {locale === "fr" ? "Réinitialiser les stats anti-cheat" : "Reset anti-cheat stats"}
+                  </h3>
+                  <p className="text-[11px] text-text-muted">
+                    {locale === "fr" ? "Action irréversible." : "Irreversible action."}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { if (!resetting) setResetOpen(false); }}
+                disabled={resetting}
+                className="text-text-muted hover:text-text disabled:opacity-50"
+                aria-label="close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-[12px] text-text-sub mb-4">
+              {locale === "fr"
+                ? "Cela supprime définitivement toutes les détections agrégées (alert_stats) et l'historique brut (alert_events). Le plugin continuera à pusher de nouvelles données après le reset."
+                : "This permanently deletes all aggregated detections (alert_stats) and raw history (alert_events). The plugin will keep pushing new data after the reset."}
+            </p>
+            <label className="block text-[11px] font-semibold text-text-sub mb-1">
+              {locale === "fr" ? "Tape RESET pour confirmer" : "Type RESET to confirm"}
+            </label>
+            <input
+              type="text"
+              value={resetConfirmText}
+              onChange={(e) => setResetConfirmText(e.target.value)}
+              disabled={resetting}
+              autoFocus
+              className="w-full px-3 py-2 rounded-lg border border-border bg-bg-soft text-[13px] text-text outline-none focus:border-pink"
+              placeholder="RESET"
+            />
+            {resetMsg && (
+              <p className={`mt-3 text-[12px] ${resetMsg.kind === "ok" ? "text-green" : "text-red-500"}`}>
+                {resetMsg.text}
+              </p>
+            )}
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                type="button"
+                onClick={() => setResetOpen(false)}
+                disabled={resetting}
+                className="px-4 py-2 rounded-xl text-[12px] font-semibold text-text-sub hover:bg-bg-soft transition disabled:opacity-50"
+              >
+                {locale === "fr" ? "Annuler" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={performReset}
+                disabled={resetting || resetConfirmText !== "RESET"}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 text-white text-[12px] font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resetting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {locale === "fr" ? "Confirmer le reset" : "Confirm reset"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">

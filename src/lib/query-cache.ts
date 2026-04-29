@@ -39,9 +39,15 @@ export async function cached<T>(
 
 /** Clear cache entries whose key starts with one of the given prefixes. */
 export function cacheInvalidate(prefixes: string[]): void {
+  if (prefixes.length === 0) return;
   for (const key of store.keys()) {
     if (prefixes.some((p) => key.startsWith(p))) store.delete(key);
   }
+}
+
+/** Drop the entire in-memory cache (used on global perm/role changes). */
+export function cacheClear(): void {
+  store.clear();
 }
 
 /** For introspection / tests. */

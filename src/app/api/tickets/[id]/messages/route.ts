@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { addMessage, getTicketById, getTicketByCode, getMessages } from "@/lib/tickets";
 import { getCurrentStaff } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/player-auth";
-import { hasPermission, ROLE_LABELS } from "@/lib/roles";
+import { hasPermissionForStaff } from "@/lib/permissions";
+import { ROLE_LABELS } from "@/lib/roles";
 
 // Resolves a ticket by id OR code (URL segment can be either).
 async function resolveTicket(idOrCode: string) {
@@ -19,12 +20,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // Staff path
   const staff = await getCurrentStaff(req);
   if (staff) {
-    if (!hasPermission(staff.role, "tickets.respond")) {
+    if (!(await hasPermissionForStaff(staff, "tickets.respond"))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const ticket = await resolveTicket(id);
     if (!ticket) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (ticket.category === "admin" && !hasPermission(staff.role, "tickets.admin_category")) {
+    if (ticket.category === "admin" && !(await hasPermissionForStaff(staff, "tickets.admin_category"))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const msg = await addMessage({
@@ -65,13 +66,23 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const staff = await getCurrentStaff(req);
-  if (staff && hasPermission(staff.role, "tickets.view")) {
-    const messages = await getMessages(id, true);
+  if (staff && (await hasPermissionForStaff(staff, "tickets.view"))) {
+    // Resolve via id OR code so /api/tickets/<code>/messages works for staff too.
+    const ticket = await resolveTicket(id);
+    if (!ticket) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (ticket.category === "admin" && !(await hasPermissionForStaff(staff, "tickets.admin_category"))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const messages = await getMessages(ticket.id, true);
     return NextResponse.json(messages);
   }
-  // Public: treat id as code
+  // Public: treat id as code (no internal messages exposed).
   const ticket = await getTicketByCode(id);
   if (!ticket) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const account = await getCurrentAccount(req);
+  if (ticket.accountId && (!account || ticket.accountId !== account.id)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const messages = await getMessages(ticket.id, false);
   return NextResponse.json(messages);
 }

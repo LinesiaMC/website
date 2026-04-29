@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createTicket, listTickets, addMessage, getTicketByCode, getMessages, TICKET_CATEGORIES, TicketCategory, TicketStatus } from "@/lib/tickets";
 import { getCurrentStaff } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/player-auth";
-import { hasPermission } from "@/lib/roles";
+import { hasPermissionForStaff } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
@@ -15,12 +15,12 @@ export async function GET(req: NextRequest) {
   }
 
   const staff = await getCurrentStaff(req);
-  if (!staff || !hasPermission(staff.role, "tickets.view")) {
+  if (!staff || !(await hasPermissionForStaff(staff, "tickets.view"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const status = req.nextUrl.searchParams.get("status") as TicketStatus | null;
   const category = req.nextUrl.searchParams.get("category") as TicketCategory | null;
-  const includeAdmin = hasPermission(staff.role, "tickets.admin_category");
+  const includeAdmin = await hasPermissionForStaff(staff, "tickets.admin_category");
   const tickets = await listTickets({
     status: status || undefined,
     category: category || undefined,

@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTicketById, closeTicket, reopenTicket, addMessage, getMessages, updateTicketStatus } from "@/lib/tickets";
 import { getCurrentStaff } from "@/lib/auth";
-import { hasPermission } from "@/lib/roles";
+import { hasPermissionForStaff } from "@/lib/permissions";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const staff = await getCurrentStaff(req);
-  if (!staff || !hasPermission(staff.role, "tickets.view")) {
+  if (!staff || !(await hasPermissionForStaff(staff, "tickets.view"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const ticket = await getTicketById(id);
   if (!ticket) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (ticket.category === "admin" && !hasPermission(staff.role, "tickets.admin_category")) {
+  if (ticket.category === "admin" && !(await hasPermissionForStaff(staff, "tickets.admin_category"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const messages = await getMessages(ticket.id, true);
@@ -22,17 +22,20 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const { id } = await ctx.params;
   const staff = await getCurrentStaff(req);
   if (!staff) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await hasPermissionForStaff(staff, "tickets.view"))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const body = await req.json() as {
     action?: "close" | "reopen" | "assign";
     reason?: string; summary?: string; assignedTo?: string | null;
   };
   const ticket = await getTicketById(id);
   if (!ticket) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (ticket.category === "admin" && !hasPermission(staff.role, "tickets.admin_category")) {
+  if (ticket.category === "admin" && !(await hasPermissionForStaff(staff, "tickets.admin_category"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (body.action === "close") {
-    if (!hasPermission(staff.role, "tickets.close")) {
+    if (!(await hasPermissionForStaff(staff, "tickets.close"))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (!body.reason?.trim()) {
@@ -52,7 +55,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ ok: true });
   }
   if (body.action === "reopen") {
-    if (!hasPermission(staff.role, "tickets.close")) {
+    if (!(await hasPermissionForStaff(staff, "tickets.close"))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     await reopenTicket(id);
@@ -65,6 +68,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ ok: true });
   }
   if (body.action === "assign") {
+    if (!(await hasPermissionForStaff(staff, "tickets.respond"))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     await updateTicketStatus(id, ticket.status, body.assignedTo ?? null);
     return NextResponse.json({ ok: true });
   }
