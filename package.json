@@ -11,6 +11,7 @@
   "dependencies": {
     "@libsql/client": "^0.17.2",
     "chart.js": "^4.5.1",
+    "pg": "^8.13.0",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.7.0",
     "next": "15.5.14",
@@ -27,6 +28,7 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.11.10",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

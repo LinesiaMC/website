@@ -1,126 +1,147 @@
 # Linesia — Website
 
-Public website + staff admin panel for the Linesia Minecraft Bedrock server.
+Public website + staff admin panel pour le serveur Minecraft Bedrock Linesia.
 
 ## Stack
 - **Next.js 15** (App Router), TypeScript, Tailwind v4, next-intl, framer-motion, Chart.js
-- **libSQL local SQLite** (`DATABASE_URL=file:./data/linesia.db`, défaut si non défini)
-- Auth: Discord OAuth + Microsoft/Xbox OAuth, session cookies (`linesia_staff_session` / `linesia_player_session`)
-- Ingest API consumed by **LinesiaCore** plugin (PocketMine-MP) over HTTP+x-api-key
+- **Postgres 16 partagé** (rôle `linesia_web`) via PgBouncer local
+  (`postgres://linesia_web:***@127.0.0.1:6432/linesia`).
+- Auth: Discord OAuth + Microsoft/Xbox OAuth, session cookies
+  (`linesia_staff_session` / `linesia_player_session`).
+- L'endpoint `/api/ingest/*` consommé par le plugin reste en place
+  comme **fallback HTTP** — le chemin nominal est désormais l'écriture
+  directe en DB par le plugin.
 
 ## Source-of-truth principle
-**The Minecraft server is authoritative for player state.** The website is a
-read replica + UI for everything in-game (rank, stats, cosmetics). The
-plugin pushes profile snapshots; the website never writes back to game state.
-
-The only website-owned writes are: articles, wiki, roadmap, tickets,
-manually-added staff rows (`staff_users.source = 'manual'`), and the
-permission matrix (`role_permissions`).
+**La DB partagée est la source de vérité.** Le plugin (LinesiaCore-PNX)
+en est l'**écrivain primaire** pour `game.*` ; le site lit. Le site
+possède en propre les domaines `web.*` (auth, articles, wiki, roadmap,
+tickets, matrice de permissions, comptes web).
 
 ## Layout
 ```
 src/
   app/
-    [locale]/                 # fr (default), en
-      page.tsx                # Homepage
-      account/                # Player account page (link to in-game)
-      leaderboard/            # Public ranking + player profile (XP/cosmetics/jobs)
-      news/  store/  wiki/    # Public content
-      admin/                  # Staff panel (gated by session+permissions)
-        layout.tsx            # Shell, sidebar, AdminContext provider
-        community/            # All players (linked + unlinked) — perm: community.view
-        roles/                # Role × Permission matrix       — perm: permissions.manage
-        staff/                # Staff users CRUD                — perm: staff.manage
-        analytics/            # Dashboards, retention, logs, etc.
+    [locale]/          fr (default), en
+      page.tsx
+      account/         Player account (link to in-game)
+      leaderboard/     Public ranking + profile (xuid)
+      news/  store/  wiki/
+      admin/           Staff panel (gated by session+permissions)
+        community/     perm: community.view
+        roles/         perm: permissions.manage
+        staff/         perm: staff.manage
+        analytics/     dashboards, retention, logs
         tickets/  wiki/  roadmap/
     api/
-      account/                # Player account: link/verify, microsoft OAuth
-      auth/                   # Staff auth: discord, microsoft, me, logout
-      ingest/[...path]/       # Plugin → site (x-api-key gated)
-                              # routes: join leave world chat death command
-                              #         block batch logs casino sanction
-                              #         player-aliases economy-snapshot
-                              #         player-profile cosmetics
-      leaderboard/            # Public read API
-      community/              # Admin: paged list of all players
-      permissions/            # Admin: read/write role_permissions
+      account/         link/verify, microsoft OAuth (player)
+      auth/            staff: discord, microsoft, me, logout
+      ingest/[...path] FALLBACK plugin → site (x-api-key gated)
+      leaderboard/     Public read API (lit game.player_profile)
+      community/       Admin: paged list (linked + unlinked)
+      permissions/     Admin: read/write web.role_permissions
       staff/  tickets/  ...
   components/
-    admin/AdminContext.tsx    # { staff, can(perm), permissions, headers, logout }
-    admin/AnalyticsAPI.tsx    # Helpers for analytics fetchers
+    admin/AdminContext.tsx
+    admin/AnalyticsAPI.tsx
     Navbar Footer Hero ...
   lib/
-    analytics-db.ts           # libSQL client + idempotent schema migrations
-    auth.ts                   # Staff session + requirePermission (server)
-    player-auth.ts            # Player session + getPlayerStats (link via xuid)
-    permissions.ts            # DB-backed permission map (cache, invalidation)
-    roles.ts                  # Types, labels, DEFAULT_PERMISSIONS, ingame→site map
-    staff-sync.ts             # syncStaffFromIngame: in-game rank → staff_users
+    db.ts              pgPool, query, queryOne, tx, subscribe, getDb()
+    db-listen.ts       LISTEN sur linesia.* → invalide les caches
+    analytics-db.ts    DÉLÈGUE à db.ts (compat shim @libsql/client)
+    auth.ts            Staff session + requirePermission (server)
+    player-auth.ts     Player session + getPlayerStats (xuid)
+    permissions.ts     DB-backed permission map (cache, invalidé via NOTIFY)
+    roles.ts           Permission union, DEFAULT_PERMISSIONS, ingame→site map
+    staff-sync.ts      syncStaffFromIngame (sur ingest player-profile)
     articles.ts ...
+  instrumentation.ts   Hook Next: démarre les LISTEN au boot du serveur
 ```
 
+## DB layer
+- `lib/db.ts` expose **2 APIs** :
+  - **Native** (préférée pour le code neuf) : `query<T>(sql, args)`,
+    `queryOne<T>`, `tx(fn)`, `pgPool()`. Placeholders Postgres `$1, $2`.
+  - **Compat** (pour le code legacy libSQL) : `getDb()` retourne un
+    `CompatClient` avec `.execute({ sql, args })` et `.batch([...])`.
+    Les `?` sont traduits en `$N` ; les `Date.now()` (ms epoch) sont
+    auto-convertis en ISO strings.
+- `search_path = web, game, public` est défini sur chaque connexion :
+  - `SELECT * FROM staff_users`     → `web.staff_users`
+  - `SELECT * FROM players`         → `game.players`
+  - `SELECT * FROM player_cosmetics` → `game.player_cosmetics`
+- Compat views (`database/migrations/0001_compat_views.sql`) :
+  - `public.player_profile_extra` (jointure game.player_profile + game.players)
+  - `public.sanctions_legacy` / `alert_stats_legacy` / `player_aliases_legacy`
+    pour les colonnes renommées (player_uuid → player_xuid, timestamp → started_at).
+
+## LISTEN / NOTIFY + Heartbeat
+`instrumentation.ts` démarre **2 hooks** au boot :
+- `startDbListeners()` (cf. `lib/db-listen.ts`) — invalide les caches
+  in-mem sur :
+  - `linesia.permissions_changed`, `linesia.staff_changed`
+  - `linesia.player_profile_updated`, `linesia.player_cosmetics_updated`
+  - `linesia.player_link_changed`, `linesia.sanction_added`
+- `startHeartbeat()` (cf. `lib/heartbeat.ts`) — UPSERT chaque 30 s dans
+  `public.service_heartbeats` (`service_id='website'`). Émet aussi un
+  `system_events('info','website','started'|'stopped',…)` au cycle de vie.
+
+LISTEN ne marche **pas** via PgBouncer transaction-mode : le subscriber
+ouvre une connexion DIRECTE (`DATABASE_URL_DIRECT` → port 5432).
+
+## /admin/health
+Page React qui poll `/api/health` toutes les 5 s :
+- Cartes des services (plugin, website, bot) avec status + last_seen
+- Liste des 50 derniers `system_events`
+- Permission requise : `system.view` (admin + founder par défaut).
+
 ## Auth & Permissions
-- **Staff**: log in via Discord or Microsoft. Session cookie → `staff_users` row.
-- **Player** (public): log in via Microsoft, link in-game pseudo through `/link CODE`
-  command (the plugin POSTs xuid + username to `/api/account/link/verify`).
-- **Permissions**: `lib/roles.ts` exports `Permission` union and `DEFAULT_PERMISSIONS`
-  (used as fallback). Live overrides live in `role_permissions` table, cached
-  by `lib/permissions.ts` (30 s TTL, invalidated on write).
-- `requirePermission(req, perm)` (server): async, reads cached map.
-- `useAdmin().can(perm)` (client): reads the map shipped via `/api/auth/me`,
-  falls back to `hasPermission()` defaults if not loaded.
-- **Founder is hard-coded super-admin**: always has every permission, not
-  editable from the matrix UI (security: prevents accidental lock-out).
+- **Staff** : Discord ou Microsoft → `web.staff_users`. Session cookie.
+- **Player** : Microsoft → `web.player_accounts`. `/link CODE` validé
+  par le plugin **directement en DB** via `LinkDao.confirm()` (le plugin
+  a `GRANT UPDATE` ciblé sur `web.player_accounts`).
+- **Permissions** : `lib/roles.ts` exporte `Permission` et
+  `DEFAULT_PERMISSIONS` (fallback). Live overrides dans
+  `web.role_permissions`, cache 30 s, invalidé via NOTIFY.
+- Founder = super-admin hard-codé.
 
 ## Rank sync (in-game → site)
-On every `player-profile` ingest, `syncStaffFromIngame()` runs:
-1. Resolves linked website account by `xuid` (in `player_accounts.linked_player_uuid`).
-2. Maps in-game rank (`vérificateur`/`guide` → `guide`, `modérateur` → `moderator`,
-   `super-modérateur` → `super_moderator`, `administrateur` → `admin`, `owner` → `founder`).
-3. UPSERTs an `ingame`-sourced staff row, or DELETEs if the rank no longer maps to staff.
-4. NEVER touches `manual`-sourced rows; manual rows take precedence.
-5. Audit logged in `staff_audit` table.
+Le plugin écrit directement dans `game.player_profile`. Le trigger
+Postgres émet `linesia.player_profile_updated`. `staff-sync.ts` (côté
+site, déclenché par le legacy ingest OU par un job déclenché sur
+NOTIFY) compare `rank` à la matrice ingame→site et met à jour
+`web.staff_users` (avec `source='ingame'`).
 
-Demoting a player in-game removes their site staff role within ~5 minutes
-(plugin pushes profile every 5 min + on join/quit).
+## Plugin ↔ site contract
+- Chemin nominal : **plugin écrit directement** dans `game.*` via
+  HikariCP. Le site lit. Aucun aller-retour HTTP.
+- Fallback (si DB indispo plugin-side) : POST `/api/ingest/*` avec
+  `X-Api-Key` matching `ANALYTICS_API_KEY`. Routes consommées :
+  - `join | leave | command | death | chat | world | block | casino |
+     sanction | player-aliases | economy-snapshot | logs | batch`
+  - `player-profile`, `cosmetics`
+  - `account/link/verify` (kept en fallback, mais le plugin fait
+    désormais `LinkDao.confirm()` direct DB).
 
-## DB tables (additions for player-account / community work)
-- `player_accounts` — website accounts (Microsoft OAuth + manual link)
-- `player_sessions`
-- `player_profile_extra (xuid PK, rank, prestige, money, kills, deaths, jobs, ...)`
-- `player_cosmetics (xuid + full_id PK, type, name, active)`
-- `players.xuid` — added column, backfilled by ingest (links analytics player → linked account)
-- `role_permissions (role, permission, allowed)` — overrides for the matrix
-- `staff_users.source` ('manual' | 'ingame'), `.ingame_rank`, `.linked_xuid`
-- `staff_audit (actor, action, target, detail, timestamp)` — audit trail
-
-## Plugin ↔ site contract (x-api-key)
-The plugin (`LinesiaCore`) authenticates every push with `X-Api-Key` matching
-`ANALYTICS_API_KEY`. Routes consumed:
-- `POST /api/ingest/join | leave | command | death | chat | world | block | casino | sanction | player-aliases | economy-snapshot | logs | batch`
-- `POST /api/ingest/player-profile` — enriched profile (rank, prestige, jobs, money…) → backfills `players.xuid` + triggers `syncStaffFromIngame`
-- `POST /api/ingest/cosmetics` — owned + active cosmetics
-- `POST /api/account/link/verify` — confirms a `/link CODE` from Minecraft
-
-## Key env vars
-| Var | Purpose | Default |
-|-----|---------|---------|
-| `DATABASE_URL` | libSQL endpoint (local SQLite) | `file:./data/linesia.db` |
-| `ANALYTICS_API_KEY` | Shared with plugin for ingest + link verify | (rotate in prod) |
-| `ANALYTICS_API_URL` | URL of analytics backend (used by `/api/analytics/` proxy) | http://localhost:3000 |
-| `ADMIN_PASSWORD` | Legacy article admin password | linesia-admin-2026 |
-| `MICROSOFT_CLIENT_ID/SECRET/REDIRECT` | Staff + player MS OAuth | — |
+## Env vars critiques
+| Var | Rôle | Défaut |
+|-----|------|--------|
+| `DATABASE_URL` | URL pg via PgBouncer (port 6432) | `postgres://linesia_web:***@127.0.0.1:6432/linesia` |
+| `DATABASE_URL_DIRECT` | Connexion directe (port 5432) pour LISTEN | idem mais 5432 |
+| `PG_POOL_MAX` | Taille du pool pg | 20 |
+| `ANALYTICS_API_KEY` | Fallback HTTP avec plugin | (rotate) |
+| `MICROSOFT_CLIENT_ID/SECRET/REDIRECT` | Player + staff MS OAuth | — |
 | `DISCORD_CLIENT_ID/SECRET/REDIRECT` | Staff Discord OAuth | — |
 
-See `SECURITY.md` for rotation policy + threat model.
-
-## Commands
-- `npm run dev` · `npm run build` · `npm run lint`
-
 ## Conventions
-- All admin pages MUST gate render with `useAdmin().can("…")` (defense in depth).
-- All admin API routes MUST gate via `requirePermission(req, "…")`.
-- Never store player UUID in `staff_users.microsoft_id` — that column is the
-  Microsoft account id (XUID for MS-linked humans only).
-- `player_accounts.linked_player_uuid` actually holds the **xuid** post-link
-  (legacy column name). Use `getPlayerStats(idOrXuid)` which accepts either.
+- Pour les nouveaux fichiers : `import { query, queryOne, tx } from "@/lib/db"`.
+- Pour le legacy : `import { getDb } from "@/lib/analytics-db"` (toujours OK,
+  délègue à db.ts).
+- Toujours utiliser des placeholders (jamais `${}` dans une requête SQL).
+- Les caches in-memory **doivent** être enregistrés dans `db-listen.ts`
+  pour être invalidés via NOTIFY.
+- Pas d'écriture côté site dans `game.*` — le site est lecteur seul
+  pour ce schéma.
+
+## Commandes
+- `npm run dev` · `npm run build` · `npm run lint`

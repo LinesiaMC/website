@@ -42,7 +42,8 @@ export type Permission =
   | "community.moderate"
   | "community.ban"
   | "analytics.view"
-  | "alerts.view";
+  | "alerts.view"
+  | "system.view";
 
 export const PERMISSIONS: Permission[] = [
   "articles.manage", "wiki.manage", "roadmap.manage",
@@ -50,6 +51,7 @@ export const PERMISSIONS: Permission[] = [
   "community.moderate", "community.ban",
   "tickets.view", "tickets.respond", "tickets.close", "tickets.admin_category",
   "permissions.manage",
+  "system.view",
 ];
 
 export const PERMISSION_LABELS: Record<Permission, { fr: string; en: string; group: string }> = {
@@ -67,6 +69,7 @@ export const PERMISSION_LABELS: Record<Permission, { fr: string; en: string; gro
   "tickets.close":           { fr: "Clore les tickets",        en: "Close tickets",          group: "tickets" },
   "tickets.admin_category":  { fr: "Tickets catégorie staff",  en: "Staff-category tickets", group: "tickets" },
   "permissions.manage":      { fr: "Gérer les permissions",    en: "Manage permissions",     group: "admin" },
+  "system.view":             { fr: "Voir l'état système",      en: "View system health",     group: "admin" },
 };
 
 /**
@@ -83,42 +86,42 @@ export const DEFAULT_PERMISSIONS: Record<StaffRole, Record<Permission, boolean>>
     "logs.view": false, "analytics.view": false, "alerts.view": false, "community.view": false,
     "community.moderate": false, "community.ban": false,
     "tickets.view": false, "tickets.respond": false, "tickets.close": false, "tickets.admin_category": false,
-    "permissions.manage": false,
+    "permissions.manage": false, "system.view": false,
   },
   guide: {
     "articles.manage": false, "wiki.manage": false, "roadmap.manage": false,
     "logs.view": false, "analytics.view": true, "alerts.view": false, "community.view": true,
     "community.moderate": false, "community.ban": false,
     "tickets.view": true, "tickets.respond": true, "tickets.close": false, "tickets.admin_category": false,
-    "permissions.manage": false,
+    "permissions.manage": false, "system.view": false,
   },
   moderator: {
     "articles.manage": false, "wiki.manage": true, "roadmap.manage": false,
     "logs.view": true, "analytics.view": true, "alerts.view": true, "community.view": true,
     "community.moderate": true, "community.ban": false,
     "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": false,
-    "permissions.manage": false,
+    "permissions.manage": false, "system.view": false,
   },
   super_moderator: {
     "articles.manage": true, "wiki.manage": true, "roadmap.manage": true,
     "logs.view": true, "analytics.view": true, "alerts.view": true, "community.view": true,
     "community.moderate": true, "community.ban": true,
     "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": false,
-    "permissions.manage": false,
+    "permissions.manage": false, "system.view": false,
   },
   admin: {
     "articles.manage": true, "wiki.manage": true, "roadmap.manage": true,
     "logs.view": true, "analytics.view": true, "alerts.view": true, "community.view": true,
     "community.moderate": true, "community.ban": true,
     "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": true,
-    "permissions.manage": false,
+    "permissions.manage": false, "system.view": true,
   },
   founder: {
     "articles.manage": true, "wiki.manage": true, "roadmap.manage": true,
     "logs.view": true, "analytics.view": true, "alerts.view": true, "community.view": true,
     "community.moderate": true, "community.ban": true,
     "tickets.view": true, "tickets.respond": true, "tickets.close": true, "tickets.admin_category": true,
-    "permissions.manage": true,
+    "permissions.manage": true, "system.view": true,
   },
 };
 
