@@ -203,7 +203,7 @@ export async function addMessage(data: {
   const result = await db.execute({
     sql: `INSERT INTO ticket_messages (ticket_id, author_type, author_name, author_role, content, is_internal, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    args: [data.ticketId, data.authorType, data.authorName, data.authorRole ?? null, data.content, data.isInternal ? 1 : 0, now],
+    args: [data.ticketId, data.authorType, data.authorName, data.authorRole ?? null, data.content, !!data.isInternal, now],
   });
   await run(db, "UPDATE tickets SET updated_at = ?, status = CASE WHEN status = 'closed' THEN 'closed' ELSE 'open' END WHERE id = ?",
     [now, data.ticketId]);
@@ -221,7 +221,7 @@ export async function addMessage(data: {
 
 export async function getMessages(ticketId: string, includeInternal: boolean): Promise<TicketMessage[]> {
   const db = await getDb();
-  const where = includeInternal ? "WHERE ticket_id = ?" : "WHERE ticket_id = ? AND is_internal = 0";
+  const where = includeInternal ? "WHERE ticket_id = ?" : "WHERE ticket_id = ? AND is_internal = false";
   const rows = await getAll(db, `SELECT * FROM ticket_messages ${where} ORDER BY created_at ASC`, [ticketId]);
   return rows.map(rowToMessage);
 }

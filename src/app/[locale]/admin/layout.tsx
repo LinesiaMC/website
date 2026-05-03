@@ -9,7 +9,7 @@ import {
   ScrollText, ChevronLeft, ChevronRight, LayoutDashboard,
   Coins, Dices, Box, Shield, MessageSquare, BookOpen,
   LifeBuoy, UserCircle2, Map, LogIn, User, Briefcase, Award, Ticket,
-  ShieldAlert,
+  ShieldAlert, Activity,
 } from "lucide-react";
 import { AdminContext, CurrentStaff } from "@/components/admin/AdminContext";
 import { hasPermission, Permission, ROLE_LABELS, ROLE_COLORS } from "@/lib/roles";
@@ -35,6 +35,7 @@ const NAV_ITEMS: { key: string; icon: typeof Newspaper; path: string; perm: Perm
   { key: "staff",      icon: Shield,          path: "/admin/analytics/staff",           perm: "analytics.view" },
   { key: "alerts",     icon: ShieldAlert,     path: "/admin/analytics/alerts",          perm: "alerts.view" },
   { key: "logs",       icon: ScrollText,      path: "/admin/analytics/logs",            perm: "logs.view" },
+  { key: "health",     icon: Activity,        path: "/admin/health",                    perm: "system.view" },
 ];
 
 const NAV_LABELS: Record<string, { fr: string; en: string }> = {
@@ -58,6 +59,7 @@ const NAV_LABELS: Record<string, { fr: string; en: string }> = {
   staff: { fr: "Staff actions", en: "Staff actions" },
   alerts: { fr: "Anti-Cheat", en: "Anti-Cheat" },
   logs: { fr: "Logs", en: "Logs" },
+  health: { fr: "Santé", en: "Health" },
 };
 
 export default function AdminLayout({ children }: { children: ReactNode }) {

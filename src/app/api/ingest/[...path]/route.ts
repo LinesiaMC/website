@@ -607,7 +607,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
           stmts.push({
             sql: `INSERT INTO player_cosmetics (xuid, full_id, type, identifier, name, active, updated_at)
                   VALUES (?,?,?,?,?,?,?)`,
-            args: [xuid, c.full_id, c.type || "", c.id || c.identifier || "", c.name || null, c.active ? 1 : 0, now],
+            args: [xuid, c.full_id, c.type || "", c.id || c.identifier || "", c.name || null, !!c.active, now],
           });
         }
         if (uuid) {

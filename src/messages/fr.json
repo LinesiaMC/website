@@ -67,7 +67,8 @@
     "viewAll": "Voir toutes les actualites",
     "back": "Retour aux actualites",
     "noArticles": "Aucun article pour le moment",
-    "noArticlesDesc": "Revenez bientot !"
+    "noArticlesDesc": "Revenez bientot !",
+    "draft": "Brouillon"
   },
   "store": {
     "label": "Boutique",
@@ -80,7 +81,56 @@
     "bonus": "bonus",
     "popular": "Populaire",
     "buyNow": "Acheter",
-    "viewAll": "Voir toute la boutique"
+    "viewAll": "Voir toute la boutique",
+    "page": {
+      "badge": "Boutique",
+      "title": "Boutique",
+      "titleHighlight": "Linesia",
+      "subtitle": "Soutenez le serveur et obtenez des Gems pour débloquer des cosmétiques et du contenu de confort en jeu.",
+      "minecraftName": "Pseudo Minecraft",
+      "namePlaceholder": "Entrez votre pseudo en jeu...",
+      "confirm": "Confirmer",
+      "deliveryNote": "Les Gems seront livrées à <b>{name}</b>.",
+      "addToCart": "Ajouter",
+      "topSupporters": "Top soutiens",
+      "supportersEmpty": "Apparaîtront ici dès le premier achat.",
+      "rewardLabel": "Récompense :",
+      "trustInstantTitle": "Livraison instantanée",
+      "trustInstantText": "Les Gems sont créditées sur votre compte en jeu dans la minute.",
+      "trustSecureTitle": "Paiement sécurisé",
+      "trustSecureText": "Toutes les transactions passent par Tebex. Aucune donnée bancaire stockée.",
+      "trustFairTitle": "Sans déséquilibre",
+      "trustFairText": "Cosmétiques et confort uniquement. Aucun avantage compétitif.",
+      "faqTitle": "Questions fréquentes",
+      "faq": {
+        "q1": "Quand mes Gems arrivent-elles ?",
+        "a1": "La livraison est automatique. Vous recevez une notification en jeu dès la confirmation du paiement.",
+        "q2": "Mes Gems ne sont pas arrivées ?",
+        "a2": "Ouvrez un ticket sur Discord avec votre preuve d'achat (mail Tebex). Le staff intervient sous 24 h.",
+        "q3": "Je peux acheter pour un autre joueur ?",
+        "a3": "Oui, indiquez son pseudo en haut de page avant de passer commande.",
+        "q4": "Quels moyens de paiement ?",
+        "a4": "Carte bancaire, PayPal, Apple Pay et Google Pay via Tebex."
+      },
+      "moreQuestions": "Une autre question ?",
+      "discordSupport": "Support Discord",
+      "parentsTitle": "Note aux parents",
+      "parentsText": "Linesia est gratuit et la boutique est facultative. Les paiements sont traités par Tebex et aucune donnée bancaire n'est stockée par Linesia. Nous recommandons aux parents de superviser les achats de leurs enfants.",
+      "viewCart": "Voir mon panier · {gems} Gems",
+      "cartSubtitle": "{count, plural, =1 {# pack} other {# packs}} · {price}",
+      "myCart": "Mon panier",
+      "cartEmpty": "Votre panier est vide.",
+      "totalGems": "Total Gems",
+      "total": "Total",
+      "confirmNameWarning": "Confirmez votre pseudo Minecraft en haut de page avant de payer.",
+      "redirecting": "Redirection vers Tebex...",
+      "payNow": "Payer {price}",
+      "clearCart": "Vider le panier",
+      "errorConfirmName": "Confirme ton pseudo Minecraft avant de payer.",
+      "errorEmptyCart": "Ton panier est vide.",
+      "errorCheckoutFailed": "Le paiement n'a pas pu démarrer.",
+      "errorConnection": "Connexion au service de paiement impossible."
+    }
   },
   "showcase": {
     "label": "Apercu",
@@ -124,6 +174,16 @@
     "privacy": "Confidentialite",
     "terms": "CGU",
     "notAffiliated": "Non affilie a Mojang Studios"
+  },
+  "wiki": {
+    "badge": "Wiki",
+    "title": "Wiki",
+    "titleHighlight": "Linesia",
+    "subtitle": "Toutes les informations sur le serveur",
+    "search": "Rechercher...",
+    "noResults": "Aucun résultat",
+    "underConstruction": "Le wiki est en cours de construction.",
+    "subPagesTitle": "Pages dans cette section"
   },
   "admin": {
     "title": "Panel Admin",

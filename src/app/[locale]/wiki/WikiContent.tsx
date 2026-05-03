@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Markdown from "@/components/Markdown";
 import {
@@ -107,6 +108,7 @@ function SidebarItem({
 }
 
 export default function WikiContent({ pages }: { pages: WikiPage[] }) {
+  const t = useTranslations("wiki");
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -190,14 +192,14 @@ export default function WikiContent({ pages }: { pages: WikiPage[] }) {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher..."
+            placeholder={t("search")}
             className="w-full pl-8 pr-3 py-2 rounded-xl border border-border bg-bg-soft text-[13px] text-text placeholder:text-text-muted focus:border-pink focus:outline-none"
           />
         </div>
         {search.trim() && (
           <div className="mt-2 max-h-60 overflow-auto space-y-0.5">
             {filteredPages.length === 0 ? (
-              <p className="text-[12px] text-text-muted px-3 py-2">Aucun resultat</p>
+              <p className="text-[12px] text-text-muted px-3 py-2">{t("noResults")}</p>
             ) : (
               filteredPages.map((p) => (
                 <button
@@ -239,20 +241,20 @@ export default function WikiContent({ pages }: { pages: WikiPage[] }) {
       {/* Header */}
       <div className="text-center mb-8">
         <span className="section-badge">
-          <BookOpen size={14} /> Wiki
+          <BookOpen size={14} /> {t("badge")}
         </span>
         <h1 className="text-2xl sm:text-3xl font-bold text-text">
-          Wiki <span className="gradient-text">Linesia</span>
+          {t("title")} <span className="gradient-text">{t("titleHighlight")}</span>
         </h1>
         <p className="text-[14px] text-text-sub mt-2">
-          Toutes les informations sur le serveur
+          {t("subtitle")}
         </p>
       </div>
 
       {pages.length === 0 ? (
         <div className="mc-card p-12 text-center">
           <BookOpen size={32} className="text-text-muted mx-auto mb-3" />
-          <p className="text-[14px] text-text-sub">Le wiki est en cours de construction.</p>
+          <p className="text-[14px] text-text-sub">{t("underConstruction")}</p>
         </div>
       ) : (
         <div className="flex gap-6">
@@ -321,7 +323,7 @@ export default function WikiContent({ pages }: { pages: WikiPage[] }) {
                 if (children.length === 0) return null;
                 return (
                   <div className="mt-8 pt-6 border-t border-border">
-                    <h3 className="text-[14px] font-semibold text-text mb-3">Pages dans cette section</h3>
+                    <h3 className="text-[14px] font-semibold text-text mb-3">{t("subPagesTitle")}</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {children.map((child) => (
                         <button

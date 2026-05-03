@@ -35,11 +35,15 @@ export function pgPool(): Pool {
         max: Number(process.env.PG_POOL_MAX || 20),
         idleTimeoutMillis: 30_000,
         connectionTimeoutMillis: 5_000,
-        // PgBouncer en transaction-mode ne supporte pas les statements préparés
-        // serveur-side. `pg` n'en utilise pas par défaut, c'est ok.
         allowExitOnIdle: false,
     });
     pool.on("error", (e) => console.error("[pg] pool error:", e));
+    // search_path posé sur CHAQUE connexion du pool — sinon les
+    // requêtes legacy `SELECT ... FROM articles` ne résolvent pas.
+    pool.on("connect", (client) => {
+        client.query("SET search_path TO web, game, public").catch((e) =>
+            console.error("[pg] failed to set search_path:", e));
+    });
     return pool;
 }
 

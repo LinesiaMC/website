@@ -62,7 +62,7 @@ export default function ArticleContent({ article }: { article: Article }) {
           <span>{article.date}</span>
           {article.published === false && (
             <span className="ml-2 px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-[11px] font-semibold uppercase tracking-wider">
-              Brouillon
+              {t("draft")}
             </span>
           )}
         </div>

@@ -185,7 +185,7 @@ export async function DELETE(req: NextRequest) {
   // left and no in-game mapping, delete it so it doesn't linger in listings.
   const db = await getDb();
   const remaining = await getOne(db,
-    "SELECT COUNT(*) as c FROM staff_extra_permissions WHERE staff_id = ? AND allowed = 1",
+    "SELECT COUNT(*) as c FROM staff_extra_permissions WHERE staff_id = ? AND allowed = true",
     [staffId]);
   if (remaining && Number(remaining.c) === 0) {
     const row = await getOne(db, "SELECT role, source FROM staff_users WHERE id = ?", [staffId]);

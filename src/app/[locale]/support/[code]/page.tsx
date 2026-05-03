@@ -101,7 +101,7 @@ export default function PublicTicketPage() {
               <div className="flex items-center gap-2 mb-2">
                 <User size={14} className="text-text-muted" />
                 <span className="text-[13px] font-semibold text-text">{ticket.playerName}</span>
-                <span className="text-[11px] text-text-muted">{formatDate(ticket.createdAt)}</span>
+                <span className="text-[11px] text-text-muted">{formatDate(ticket.createdAt, locale)}</span>
               </div>
               <p className="text-[13px] text-text whitespace-pre-wrap">{ticket.reason}</p>
               {ticket.proof && (
@@ -111,7 +111,7 @@ export default function PublicTicketPage() {
               )}
             </div>
 
-            {messages.map((m) => <MessageBubble key={m.id} msg={m} playerName={ticket.playerName} />)}
+            {messages.map((m) => <MessageBubble key={m.id} msg={m} playerName={ticket.playerName} locale={locale} />)}
 
             {isClosed && ticket.closeReason && (
               <div className="mc-card p-4 bg-gray-50 border-gray-200">
@@ -151,7 +151,7 @@ export default function PublicTicketPage() {
   );
 }
 
-function MessageBubble({ msg, playerName }: { msg: Message; playerName: string }) {
+function MessageBubble({ msg, playerName, locale }: { msg: Message; playerName: string; locale?: string }) {
   if (msg.authorType === "system") {
     return <div className="text-center text-[11px] text-text-muted italic">{msg.content}</div>;
   }
@@ -166,7 +166,7 @@ function MessageBubble({ msg, playerName }: { msg: Message; playerName: string }
         <div className={`flex items-center gap-2 mb-0.5 text-[11px] ${isMine ? "text-white/80" : "text-text-muted"}`}>
           <span className="font-semibold">{msg.authorName}</span>
           {msg.authorRole && <span>· {msg.authorRole}</span>}
-          <span>· {formatDate(msg.createdAt)}</span>
+          <span>· {formatDate(msg.createdAt, locale)}</span>
         </div>
         <p className={`text-[13px] whitespace-pre-wrap ${isMine ? "text-white" : "text-text"}`}>{msg.content}</p>
       </div>
@@ -182,6 +182,6 @@ function StatusBadge({ status }: { status: TicketStatus }) {
   return <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${map[status]}`}>{status}</span>;
 }
 
-function formatDate(ts: number): string {
-  return new Date(ts).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+function formatDate(ts: number, locale?: string): string {
+  return new Date(ts).toLocaleString(locale === "en" ? "en-US" : "fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }

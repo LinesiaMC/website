@@ -29,9 +29,7 @@ export default function StorePage() {
   return (
     <main>
       <Navbar />
-      <div className="pt-24">
-        <Store />
-      </div>
+      <Store />
       <Footer />
     </main>
   );

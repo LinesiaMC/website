@@ -177,18 +177,18 @@ export default function PlayerProfilePage() {
                       </div>
                     )}
                     {stats.extra?.faction && (
-                      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-purple-700 bg-purple-100 px-2 py-1 rounded">
+                      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-violet bg-violet/10 px-2 py-1 rounded">
                         <Flag size={12} />{stats.extra.faction.name}
                         <span className="ml-1 text-text-sub normal-case">· {stats.extra.faction.role}</span>
                       </div>
                     )}
                     {stats.extra?.prime != null && (
-                      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-1 rounded">
+                      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber bg-amber/10 px-2 py-1 rounded">
                         <Star size={12} />Prime <span className="ml-1 normal-case">{stats.extra.prime}$</span>
                       </div>
                     )}
                     {link ? (
-                      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded">
+                      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-green bg-green/10 border border-green/30 px-2 py-1 rounded">
                         <Check size={12} />
                         {locale === "fr" ? "Compte lié" : "Account linked"}
                         {link.microsoftGamertag && <span className="font-normal text-text-sub">· {link.microsoftGamertag}</span>}
@@ -251,7 +251,7 @@ export default function PlayerProfilePage() {
                 {stats.extra.faction.allies.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {stats.extra.faction.allies.map((a) => (
-                      <span key={a} className="text-[11px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">{a}</span>
+                      <span key={a} className="text-[11px] px-2 py-0.5 rounded-full bg-violet/10 text-violet">{a}</span>
                     ))}
                   </div>
                 )}
@@ -311,7 +311,7 @@ export default function PlayerProfilePage() {
                             className={`text-[12px] px-2.5 py-1 rounded-full border ${
                               c.active
                                 ? "bg-pink/10 border-pink/30 text-pink font-semibold"
-                                : "bg-white border-gray-200 text-text-sub"
+                                : "bg-white border-border text-text-sub"
                             }`}
                             title={c.fullId}
                           >

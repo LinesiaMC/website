@@ -87,6 +87,20 @@ interface RecentEvent {
 
 interface DailyFlag { date: string; flags: number; players: number }
 
+interface DetectionPlayer {
+  player_uuid: string;
+  player_name: string;
+  xuid: string | null;
+  reliability: Reliability;
+  severity: Severity;
+  category: string;
+  total_flags: number;
+  total_violations: number;
+  first_flag_at: number;
+  last_flag_at: number;
+  last_debug: string | null;
+}
+
 const RELIABILITY_META: Record<string, { fr: string; en: string; color: string; bg: string; text: string; icon: typeof ShieldCheck }> = {
   high:         { fr: "Fiable",        en: "Reliable",     color: "#16A34A", bg: "bg-green/10",   text: "text-green",         icon: ShieldCheck },
   medium:       { fr: "Modérément fiable", en: "Moderately reliable", color: "#F59E0B", bg: "bg-yellow-50",  text: "text-yellow-600",  icon: ShieldAlert },
@@ -173,6 +187,9 @@ export default function AlertsPage() {
   const [error, setError] = useState("");
   const [filterReliability, setFilterReliability] = useState<string>("");
   const [filterCategory, setFilterCategory] = useState<string>("");
+  const [openDetection, setOpenDetection] = useState<DetectionRow | null>(null);
+  const [detectionPlayers, setDetectionPlayers] = useState<DetectionPlayer[]>([]);
+  const [detectionPlayersLoading, setDetectionPlayersLoading] = useState(false);
   const api = useRef(createAnalyticsFetcher(headers)).current;
 
   const loadData = useCallback(() => {
@@ -199,6 +216,18 @@ export default function AlertsPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
   useAutoRefresh(loadData);
+
+  const openDetectionModal = useCallback((d: DetectionRow) => {
+    setOpenDetection(d);
+    setDetectionPlayersLoading(true);
+    setDetectionPlayers([]);
+    api("alerts/detection-players", { detection: d.detection, limit: "100" })
+      .then((rows: DetectionPlayer[]) => {
+        setDetectionPlayers(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => setDetectionPlayers([]))
+      .finally(() => setDetectionPlayersLoading(false));
+  }, [api]);
 
   const performReset = useCallback(async () => {
     setResetting(true);
@@ -638,7 +667,12 @@ export default function AlertsPage() {
                 const pct = Math.round((d.total_flags / total) * 100);
                 const meta = CATEGORY_META[d.category] || CATEGORY_META.unknown;
                 return (
-                  <div key={d.detection} className="rounded-lg border border-border p-2.5 hover:bg-bg-soft transition-colors">
+                  <button
+                    type="button"
+                    key={d.detection}
+                    onClick={() => openDetectionModal(d)}
+                    className="w-full text-left rounded-lg border border-border p-2.5 hover:bg-bg-soft hover:border-pink/40 transition-colors cursor-pointer"
+                  >
                     <div className="flex items-center justify-between mb-1.5">
                       <p className="text-[13px] font-semibold text-text">{d.detection}</p>
                       <span className="text-[12px] font-bold text-pink">{d.total_flags}</span>
@@ -655,7 +689,7 @@ export default function AlertsPage() {
                     <div className="h-1 bg-bg-soft rounded-full overflow-hidden mt-1">
                       <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: meta.color }} />
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -731,6 +765,98 @@ export default function AlertsPage() {
           </p>
         )}
       </div>
+
+      {openDetection && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => setOpenDetection(null)}
+        >
+          <div
+            className="mc-card w-full max-w-[760px] max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 p-5 border-b border-border">
+              <div className="min-w-0">
+                <h3 className="text-[15px] font-bold text-text truncate">
+                  {openDetection.detection}
+                </h3>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <CategoryPill category={openDetection.category} locale={locale} />
+                  <ReliabilityBadge reliability={openDetection.reliability} locale={locale} />
+                  <SeverityBadge severity={openDetection.severity} locale={locale} />
+                  <span className="text-[11px] text-text-muted">
+                    {formatNumber(openDetection.total_flags)} {locale === "fr" ? "alertes" : "flags"} · {openDetection.unique_players} {locale === "fr" ? "joueur(s)" : "player(s)"}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpenDetection(null)}
+                className="text-text-muted hover:text-text shrink-0"
+                aria-label="close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              {detectionPlayersLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 size={20} className="animate-spin text-pink" />
+                </div>
+              ) : detectionPlayers.length === 0 ? (
+                <p className="text-[13px] text-text-muted text-center py-8">
+                  {locale === "fr" ? "Aucun joueur trouvé pour cette détection." : "No player found for this detection."}
+                </p>
+              ) : (
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left py-2 px-2 text-text-muted font-medium">#</th>
+                      <th className="text-left py-2 px-2 text-text-muted font-medium">
+                        {locale === "fr" ? "Joueur" : "Player"}
+                      </th>
+                      <th className="text-center py-2 px-1 text-text-muted font-medium">
+                        {locale === "fr" ? "Alertes" : "Flags"}
+                      </th>
+                      <th className="text-center py-2 px-1 text-text-muted font-medium">VL</th>
+                      <th className="text-right py-2 px-2 text-text-muted font-medium">
+                        {locale === "fr" ? "Dernier flag" : "Last flag"}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detectionPlayers.map((p, i) => (
+                      <tr key={p.player_uuid} className="border-b border-border/50 hover:bg-bg-soft transition-colors">
+                        <td className="py-2.5 px-2 text-text-muted">{i + 1}</td>
+                        <td className="py-2.5 px-2 font-medium text-text">
+                          <Link
+                            href={`/${locale}/admin/analytics/alerts/${p.player_uuid}`}
+                            className="hover:text-pink"
+                            onClick={() => setOpenDetection(null)}
+                          >
+                            {p.player_name}
+                          </Link>
+                        </td>
+                        <td className="py-2.5 px-1 text-center font-semibold text-pink">{p.total_flags}</td>
+                        <td className="py-2.5 px-1 text-center text-text-sub">
+                          {Math.round(p.total_violations * 10) / 10}
+                        </td>
+                        <td
+                          className="py-2.5 px-2 text-right text-text-muted text-[11px]"
+                          title={formatDate(p.last_flag_at)}
+                        >
+                          {timeAgo(p.last_flag_at, locale)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

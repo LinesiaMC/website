@@ -43,7 +43,9 @@ function rowToArticle(row: Record<string, unknown>): Article {
     date: row.date as string,
     locale: row.locale as "fr" | "en",
     image: image || DEFAULT_ARTICLE_IMAGE,
-    published: published === undefined || published === null ? true : Number(published) === 1,
+    published: published === undefined || published === null ? true
+      : typeof published === "boolean" ? published
+      : Number(published) === 1,
   };
 }
 
@@ -51,7 +53,7 @@ export async function getArticles(options: FetchOptions = {}): Promise<Article[]
   const db = await getDb();
   const sql = options.includeDrafts
     ? "SELECT * FROM articles ORDER BY date DESC"
-    : "SELECT * FROM articles WHERE published = 1 ORDER BY date DESC";
+    : "SELECT * FROM articles WHERE published = true ORDER BY date DESC";
   const rows = await getAll(db, sql);
   return rows.map(rowToArticle);
 }
@@ -60,7 +62,7 @@ export async function getArticlesByLocale(locale: string, options: FetchOptions 
   const db = await getDb();
   const sql = options.includeDrafts
     ? "SELECT * FROM articles WHERE locale = ? ORDER BY date DESC"
-    : "SELECT * FROM articles WHERE locale = ? AND published = 1 ORDER BY date DESC";
+    : "SELECT * FROM articles WHERE locale = ? AND published = true ORDER BY date DESC";
   const rows = await getAll(db, sql, [locale]);
   return rows.map(rowToArticle);
 }
@@ -78,11 +80,11 @@ export async function createArticle(article: Omit<Article, "id">): Promise<Artic
   const db = await getDb();
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const image = article.image?.trim() || DEFAULT_ARTICLE_IMAGE;
-  const published = article.published ? 1 : 0;
+  const published = !!article.published;
   await run(db, "INSERT INTO articles (id, title, excerpt, content, date, locale, image, published) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
     id, article.title, article.excerpt, article.content, article.date, article.locale, image, published,
   ]);
-  return { ...article, id, image, published: !!article.published };
+  return { ...article, id, image, published };
 }
 
 export async function updateArticle(id: string, data: Partial<Omit<Article, "id">>): Promise<Article | null> {
@@ -92,11 +94,11 @@ export async function updateArticle(id: string, data: Partial<Omit<Article, "id"
 
   const updated = { ...rowToArticle(existing), ...data };
   const image = updated.image?.trim() || DEFAULT_ARTICLE_IMAGE;
-  const published = updated.published ? 1 : 0;
+  const published = !!updated.published;
   await run(db, "UPDATE articles SET title = ?, excerpt = ?, content = ?, date = ?, locale = ?, image = ?, published = ? WHERE id = ?", [
     updated.title, updated.excerpt, updated.content, updated.date, updated.locale, image, published, id,
   ]);
-  return { ...updated, image, published: !!updated.published };
+  return { ...updated, image, published };
 }
 
 export async function deleteArticle(id: string): Promise<boolean> {

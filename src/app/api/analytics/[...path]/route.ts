@@ -1910,6 +1910,40 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         );
       }
 
+      case "alerts/detection-players": {
+        return NextResponse.json(
+          await cached(cacheKey, CACHE_TTL, async () => {
+            const detection = q.get("detection");
+            if (!detection) return [];
+            const limit = Number(q.get("limit")) || 100;
+            const sid = q.get("server_id");
+            const sf = serverFilter(sid);
+            const wheres: string[] = ["detection = ?"];
+            const params: unknown[] = [detection];
+            if (sf.where) { wheres.push(sf.where); params.push(...sf.params); }
+            const where = `WHERE ${wheres.join(" AND ")}`;
+            return getAll(db,
+              `SELECT
+                 player_uuid,
+                 MAX(player_name) AS player_name,
+                 MAX(xuid) AS xuid,
+                 MAX(reliability) AS reliability,
+                 MAX(severity) AS severity,
+                 MAX(category) AS category,
+                 COALESCE(SUM(count), 0) AS total_flags,
+                 COALESCE(SUM(violations_total), 0) AS total_violations,
+                 MIN(first_flag_at) AS first_flag_at,
+                 MAX(last_flag_at) AS last_flag_at,
+                 MAX(last_debug) AS last_debug
+               FROM alert_stats ${where}
+               GROUP BY player_uuid
+               ORDER BY total_flags DESC
+               LIMIT ?`,
+              [...params, limit]);
+          }),
+        );
+      }
+
       case "alerts/category-breakdown": {
         return NextResponse.json(
           await cached(cacheKey, CACHE_TTL, async () => {

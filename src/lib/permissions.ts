@@ -102,7 +102,7 @@ export async function setPermission({ role, permission, allowed, actor }: SetPer
      VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(role, permission) DO UPDATE SET
        allowed=excluded.allowed, updated_at=excluded.updated_at, updated_by=excluded.updated_by`,
-    [role, permission, allowed ? 1 : 0, now, actor]);
+    [role, permission, !!allowed, now, actor]);
   invalidatePermissionCache();
 }
 
@@ -128,7 +128,7 @@ export async function listStaffExtras(staffId: string): Promise<Permission[]> {
   if (hit && hit.expires > now) return hit.value;
   const db = await getDb();
   const rows = await getAll(db,
-    "SELECT permission FROM staff_extra_permissions WHERE staff_id = ? AND allowed = 1",
+    "SELECT permission FROM staff_extra_permissions WHERE staff_id = ? AND allowed = true",
     [staffId]);
   const value = rows
     .map((r) => r.permission as Permission)
@@ -140,7 +140,7 @@ export async function listStaffExtras(staffId: string): Promise<Permission[]> {
 export async function listAllExtras(): Promise<Record<string, Permission[]>> {
   const db = await getDb();
   const rows = await getAll(db,
-    "SELECT staff_id, permission FROM staff_extra_permissions WHERE allowed = 1");
+    "SELECT staff_id, permission FROM staff_extra_permissions WHERE allowed = true");
   const out: Record<string, Permission[]> = {};
   for (const r of rows) {
     const sid = r.staff_id as string;
@@ -156,9 +156,9 @@ export async function grantStaffExtra(staffId: string, permission: Permission, a
   const db = await getDb();
   await run(db,
     `INSERT INTO staff_extra_permissions (staff_id, permission, allowed, granted_at, granted_by)
-     VALUES (?, ?, 1, ?, ?)
+     VALUES (?, ?, true, ?, ?)
      ON CONFLICT(staff_id, permission) DO UPDATE SET
-       allowed = 1, granted_at = excluded.granted_at, granted_by = excluded.granted_by`,
+       allowed = true, granted_at = excluded.granted_at, granted_by = excluded.granted_by`,
     [staffId, permission, Date.now(), actor]);
   invalidateStaffExtrasCache(staffId);
   cacheInvalidate(["staff/", "auth/"]);

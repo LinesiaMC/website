@@ -174,7 +174,22 @@ export async function getSessionStaff(token: string): Promise<StaffUser | null> 
   return row ? rowToStaff(row) : null;
 }
 
+const DEV_BYPASS_STAFF: StaffUser = {
+  id: "local-dev-founder",
+  discordId: null,
+  discordUsername: null,
+  discordAvatar: null,
+  microsoftId: null,
+  microsoftGamertag: null,
+  microsoftDisplayName: null,
+  displayName: "Local Dev (founder)",
+  role: "founder",
+  createdAt: 0,
+  lastLogin: null,
+};
+
 export async function getCurrentStaff(req?: NextRequest): Promise<StaffUser | null> {
+  if (process.env.NODE_ENV === "development") return DEV_BYPASS_STAFF;
   let token: string | undefined;
   let playerToken: string | undefined;
   if (req) {

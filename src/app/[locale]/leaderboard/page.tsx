@@ -246,8 +246,8 @@ export default function LeaderboardPage() {
                         <Link href={`/${locale}/profile/${r.uuid}`} className="font-semibold text-text hover:text-pink transition-colors inline-flex items-center gap-1.5">
                           {r.username}
                           {r.prestige > 0 && <span className="text-[10px] font-bold text-pink bg-pink/10 px-1 py-0.5 rounded">P{r.prestige}</span>}
-                          {r.prime != null && <Star size={11} className="text-amber-500" />}
-                          {r.linked && <Check size={11} className="text-green-600" />}
+                          {r.prime != null && <Star size={11} className="text-amber" />}
+                          {r.linked && <Check size={11} className="text-green" />}
                         </Link>
                         <div className="text-[11px] text-text-muted">{r.platform}</div>
                       </td>
@@ -260,7 +260,7 @@ export default function LeaderboardPage() {
                       </td>
                       <td className="px-3 py-3 text-text-sub hidden md:table-cell">
                         {r.faction ? (
-                          <span className="text-[11px] font-semibold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">{r.faction}</span>
+                          <span className="text-[11px] font-semibold text-violet bg-violet/10 px-2 py-0.5 rounded">{r.faction}</span>
                         ) : <span className="text-text-muted">—</span>}
                       </td>
                       <td className="px-3 py-3 hidden md:table-cell">

@@ -202,7 +202,7 @@ function AccountPageInner() {
               </button>
               <button
                 onClick={() => { window.location.href = "/api/account/discord"; }}
-                className="!py-3 !px-5 !text-[13px] inline-flex items-center gap-2 rounded-xl bg-[#5865F2] text-white font-semibold hover:bg-[#4752C4] transition">
+                className="btn-discord !py-3 !px-5 !text-[13px]">
                 <LogIn size={14} />{locale === "fr" ? "Se connecter avec Discord" : "Sign in with Discord"}
               </button>
             </div>
@@ -248,15 +248,15 @@ function AccountPageInner() {
           </h2>
           <div className="space-y-2">
             <div className="flex items-center gap-3 px-3 py-2 rounded-xl border border-border bg-white">
-              <div className="w-7 h-7 rounded-lg bg-[#0078D4]/10 flex items-center justify-center text-[11px] font-bold text-[#0078D4]">MS</div>
+              <div className="w-7 h-7 rounded-lg bg-microsoft/10 flex items-center justify-center text-[11px] font-bold text-microsoft">MS</div>
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-semibold text-text">Microsoft</p>
                 <p className="text-[11px] text-text-muted truncate">{account.microsoftGamertag || "—"}</p>
               </div>
-              <Check size={14} className="text-green-600" />
+              <Check size={14} className="text-green" />
             </div>
             <div className="flex items-center gap-3 px-3 py-2 rounded-xl border border-border bg-white">
-              <div className="w-7 h-7 rounded-lg bg-[#5865F2]/10 flex items-center justify-center text-[11px] font-bold text-[#5865F2]">D</div>
+              <div className="w-7 h-7 rounded-lg bg-discord/10 flex items-center justify-center text-[11px] font-bold text-discord">D</div>
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-semibold text-text">Discord</p>
                 <p className="text-[11px] text-text-muted truncate">{account.discordUsername || (locale === "fr" ? "Non lié" : "Not linked")}</p>
@@ -270,7 +270,7 @@ function AccountPageInner() {
               ) : (
                 <button
                   onClick={() => { window.location.href = "/api/account/discord"; }}
-                  className="text-[11px] font-semibold text-white bg-[#5865F2] hover:bg-[#4752C4] px-3 py-1.5 rounded-lg inline-flex items-center gap-1">
+                  className="text-[11px] font-semibold text-white bg-discord hover:bg-discord-hover transition px-3 py-1.5 rounded-lg inline-flex items-center gap-1">
                   <LinkIcon size={11} />{locale === "fr" ? "Lier" : "Link"}
                 </button>
               )}
@@ -293,7 +293,7 @@ function AccountPageInner() {
           {linked ? (
             <>
               <div className="flex items-center gap-2 mb-3">
-                <Check size={14} className="text-green-600" />
+                <Check size={14} className="text-green" />
                 <span className="text-[13px] text-text">
                   {locale === "fr" ? "Lié à" : "Linked to"} <strong>{account.linkedPlayerName}</strong>
                 </span>
